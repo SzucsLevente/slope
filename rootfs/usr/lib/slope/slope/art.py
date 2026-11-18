@@ -448,6 +448,72 @@ def draw_wifi_icon(cr, x, y, s, bars=4, active=True):
     _gloss(cr, x, y, s)
 
 
+def _name_hue(name):
+    import hashlib
+    h = int(hashlib.md5((name or "?").lower().encode()).hexdigest()[:6], 16)
+    return (h % 360) / 360.0
+
+
+def _hsv(h, s, v):
+    import colorsys
+    return colorsys.hsv_to_rgb(h, s, v)
+
+
+def draw_letter_icon(cr, x, y, s, name):
+    """A glossy generated icon (coloured tile + initial) for apps without one."""
+    hue = _name_hue(name)
+    top = "#%02x%02x%02x" % tuple(int(c * 255) for c in _hsv(hue, 0.45, 1.0))
+    bot = "#%02x%02x%02x" % tuple(int(c * 255) for c in _hsv(hue, 0.85, 0.62))
+    _glossy_tile(cr, x, y, s, top, bot)
+    words = [w for w in (name or "?").replace("-", " ").replace("_", " ").split() if w]
+    text = (words[0][0] + (words[1][0] if len(words) > 1 else "")).upper() if words else "?"
+    cr.select_font_face("Inter", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+    cr.set_font_size(s * (0.5 if len(text) == 1 else 0.4))
+    ext = cr.text_extents(text)
+    tx = x + (s - ext.width) / 2 - ext.x_bearing
+    ty = y + (s - ext.height) / 2 - ext.y_bearing
+    cr.set_source_rgba(0, 0, 0, 0.25)
+    cr.move_to(tx, ty + s * 0.02)
+    cr.show_text(text)
+    cr.set_source_rgb(1, 1, 1)
+    cr.move_to(tx, ty)
+    cr.show_text(text)
+    _gloss(cr, x, y, s)
+
+
+def draw_settings_icon(cr, x, y, s):
+    """Graphite glossy tile with a chrome gear."""
+    _glossy_tile(cr, x, y, s, "#c9ced8", "#5a6170")
+    cx, cy = x + s / 2.0, y + s / 2.0
+    teeth, r_out, r_in = 12, s * 0.34, s * 0.27
+    cr.new_path()
+    for i in range(teeth * 2):
+        a0 = math.pi * 2 * i / (teeth * 2)
+        a1 = math.pi * 2 * (i + 1) / (teeth * 2)
+        r = r_out if i % 2 == 0 else r_in
+        cr.arc(cx, cy, r, a0, a1)
+    cr.close_path()
+    cr.new_sub_path()
+    cr.arc_negative(cx, cy, s * 0.11, 2 * math.pi, 0)
+    g = cairo.LinearGradient(0, cy - r_out, 0, cy + r_out)
+    g.add_color_stop_rgb(0, 0.98, 0.98, 1.0)
+    g.add_color_stop_rgb(0.5, 0.78, 0.80, 0.85)
+    g.add_color_stop_rgb(0.51, 0.66, 0.69, 0.75)
+    g.add_color_stop_rgb(1, 0.92, 0.93, 0.96)
+    cr.set_source(g)
+    cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+    cr.fill_preserve()
+    cr.set_fill_rule(cairo.FILL_RULE_WINDING)
+    cr.set_source_rgba(0.15, 0.17, 0.22, 0.6)
+    cr.set_line_width(max(1, s / 120.0))
+    cr.stroke()
+    cr.arc(cx, cy, s * 0.2, 0, 2 * math.pi)
+    cr.set_source_rgba(0.2, 0.22, 0.28, 0.35)
+    cr.set_line_width(s * 0.02)
+    cr.stroke()
+    _gloss(cr, x, y, s)
+
+
 def draw_installer_icon(cr, x, y, s):
     """Blue glossy tile with a hard drive and a downward arrow."""
     _glossy_tile(cr, x, y, s, "#7fd8ff", "#1338b8")
@@ -523,6 +589,8 @@ def _cli():
                lambda cr, w, h: draw_installer_icon(cr, 8, 8, w - 16))
     render_png(os.path.join(out, "wifi-256.png"), 256, 256,
                lambda cr, w, h: draw_wifi_icon(cr, 8, 8, w - 16))
+    render_png(os.path.join(out, "settings-256.png"), 256, 256,
+               lambda cr, w, h: draw_settings_icon(cr, 8, 8, w - 16))
 
     def welcome(cr, w, h):
         draw_wallpaper(cr, w, h, "aqua")

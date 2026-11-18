@@ -284,7 +284,7 @@ class SettingsWindow(Gtk.Window):
         self.set_wmclass("slope-settings", "Slope-settings")
         self.set_default_size(820, 560)
         self.set_position(Gtk.WindowPosition.CENTER)
-        self.set_icon_name("preferences-system")
+        self.set_icon_name("slope-settings")
         self.s = load_settings()
         hb = Gtk.Box()
         self.add(hb)
@@ -619,7 +619,7 @@ def main():
             return 0
         app.connect("command-line", on_cmd)
     Gtk.main()
-    return 0
+    os._exit(0)     # (Force Quit uses libwnck, which can crash during teardown)
 
 
 if __name__ == "__main__":

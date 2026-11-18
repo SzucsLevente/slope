@@ -9,6 +9,8 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 from . import art
 from .common import have, logout, power, run_quiet, spawn, update_setting
 from .iwd import Agent, Iwd, ethernet_status, signal_bars
+from . import popover
+from .popover import Popover
 from .dbusmenu import DBusMenuClient, Registrar, apply_live, build_menu_items
 
 PANEL_H = 28
@@ -445,7 +447,7 @@ class Panel(Gtk.Window):
         # Spotlight
         sp = Gtk.MenuItem()
         sp.add(Gtk.Image.new_from_icon_name("system-search-symbolic", Gtk.IconSize.MENU))
-        sp.connect("activate", lambda *_: spawn(["slope-spotlight"]))
+        self._on_click(sp, lambda: spawn(["slope-spotlight"]))
         sp.set_tooltip_text("Spotlight")
         self.status.append(sp)
 
@@ -465,32 +467,14 @@ class Panel(Gtk.Window):
                                   "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager",
                                   "org.freedesktop.NetworkManager", None, self._nm_ready)
 
-        # Volume
+        # Volume: a popover (sliders do not work inside GTK menus)
         self.vol_img = Gtk.Image.new_from_icon_name("audio-volume-high-symbolic", Gtk.IconSize.MENU)
-        vol = Gtk.MenuItem()
-        vol.add(self.vol_img)
-        vmenu = Gtk.Menu()
-        self.vol_label = Gtk.MenuItem(label="Sound")
-        self.vol_label.set_sensitive(False)
-        vmenu.append(self.vol_label)
-        scale_item = Gtk.MenuItem()
-        scale_item.get_style_context().add_class("slope-slider-item")
-        self.vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
-        self.vol_scale.set_draw_value(False)
-        self.vol_scale.set_size_request(200, -1)
-        self._vol_handler = self.vol_scale.connect("value-changed", self._vol_changed)
-        scale_item.add(self.vol_scale)
-        vmenu.append(scale_item)
-        self.mute_item = Gtk.CheckMenuItem(label="Mute")
-        self._mute_handler = self.mute_item.connect("toggled", lambda m: spawn(
-            ["pactl", "set-sink-mute", "@DEFAULT_SINK@", "1" if m.get_active() else "0"]))
-        vmenu.append(self.mute_item)
-        vmenu.append(sep())
-        vmenu.append(cmd_item("Sound Settings…", cb=lambda: spawn(["pavucontrol"])))
-        vmenu.connect("show", lambda *_: self._refresh_volume())
-        vmenu.show_all()
-        vol.set_submenu(vmenu)
-        self.status.append(vol)
+        self.vol_item = Gtk.MenuItem()
+        self.vol_item.add(self.vol_img)
+        self.vol_item.set_tooltip_text("Sound")
+        self._on_click(self.vol_item, lambda: self._toggle_popover(self.vol_pop, self.vol_item))
+        self.status.append(self.vol_item)
+        self._build_volume_popover()
 
         # Battery
         self.bat_item = Gtk.MenuItem()
@@ -506,39 +490,19 @@ class Panel(Gtk.Window):
         self.bat_item.set_submenu(bm)
         self.status.append(self.bat_item)
 
-        # Clock
+        # Clock: popover with a calendar
         self.clock = Gtk.MenuItem()
         self.clock_lbl = Gtk.Label()
         self.clock.add(self.clock_lbl)
-        cm = Gtk.Menu()
-        self.date_item = Gtk.MenuItem(label="")
-        self.date_item.set_sensitive(False)
-        cm.append(self.date_item)
-        cal_item = Gtk.MenuItem()
-        cal_item.get_style_context().add_class("slope-slider-item")
-        cal = Gtk.Calendar()
-        cal_item.add(cal)
-        cm.append(cal_item)
-        cm.append(sep())
-        t24 = Gtk.CheckMenuItem(label="Use 24-Hour Clock")
-        t24.set_active(self.shell.settings.get("clock_24h", True))
-        t24.connect("toggled", lambda m: update_setting("clock_24h", m.get_active()))
-        cm.append(t24)
-        cm.append(cmd_item("Date & Time Settings…", cb=lambda: spawn(["slope-settings", "--page", "clock"])))
-        def today(*_):
-            now = time.localtime()
-            cal.select_month(now.tm_mon - 1, now.tm_year)
-            cal.select_day(now.tm_mday)
-        cm.connect("show", today)
-        cm.show_all()
-        self.clock.set_submenu(cm)
+        self._on_click(self.clock, lambda: self._toggle_popover(self.clock_pop, self.clock))
         self.status.append(self.clock)
+        self._build_clock_popover()
 
         self._tick()
         GLib.timeout_add_seconds(1, self._tick)
         self._refresh_battery()
         GLib.timeout_add_seconds(30, self._refresh_battery)
-        self._refresh_volume()
+        self._refresh_volume_icon()
         GLib.timeout_add_seconds(5, self._refresh_volume_icon)
 
     def _tick(self):
@@ -551,7 +515,7 @@ class Panel(Gtk.Window):
         else:
             fmt += "%-I:%M:%S %p" if s.get("clock_seconds") else "%-I:%M %p"
         self.clock_lbl.set_text(time.strftime(fmt))
-        self.date_item.set_label(time.strftime("%A, %-d %B %Y"))
+        self.date_lbl.set_markup("<span size='large'><b>%s</b></span>" % time.strftime("%A, %-d %B %Y"))
         return True
 
     # battery
@@ -603,16 +567,141 @@ class Panel(Gtk.Window):
             icon = "audio-volume-high-symbolic"
         self.vol_img.set_from_icon_name(icon, Gtk.IconSize.MENU)
 
+    @staticmethod
+    def _on_click(item, cb):
+        """Top-bar items without a submenu never emit "activate": handle the click."""
+        def press(w, ev):
+            if ev.button == 1:
+                cb()
+            return True
+        item.connect("button-press-event", press)
+
+    # -- popovers ---------------------------------------------------------
+    def _toggle_popover(self, pop, item):
+        for other in (self.vol_pop, self.clock_pop):
+            if other is not pop and other.get_visible():
+                other.dismiss()
+        # allocation is relative to the item's GdkWindow (the menu bar's), not the panel's
+        _, ox, _oy = item.get_window().get_origin()
+        _, _px, py = self.get_window().get_origin()
+        a = item.get_allocation()
+        GLib.idle_add(self.status.deselect)
+        pop.toggle(ox + a.x + a.width / 2, py + PANEL_H)
+
+    def dismiss_popovers(self):
+        for pop in (self.vol_pop, self.clock_pop):
+            if pop.get_visible():
+                pop.dismiss()
+
+    def _build_volume_popover(self):
+        pop = Popover(280)
+        self.vol_pop = pop
+        c = pop.content
+        top = Gtk.Box()
+        top.pack_start(popover.heading("Sound"), True, True, 0)
+        self.vol_pct = Gtk.Label(xalign=1)
+        self.vol_pct.get_style_context().add_class("dim-label")
+        top.pack_end(self.vol_pct, False, False, 0)
+        c.pack_start(top, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        row.pack_start(Gtk.Image.new_from_icon_name("audio-volume-low-symbolic", Gtk.IconSize.MENU), False, False, 0)
+        self.vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self.vol_scale.set_draw_value(False)
+        self.vol_scale.set_hexpand(True)
+        self._vol_handler = self.vol_scale.connect("value-changed", self._vol_changed)
+        row.pack_start(self.vol_scale, True, True, 0)
+        row.pack_start(Gtk.Image.new_from_icon_name("audio-volume-high-symbolic", Gtk.IconSize.MENU), False, False, 0)
+        c.pack_start(row, False, False, 0)
+        mrow = Gtk.Box()
+        mrow.pack_start(Gtk.Label(label="Mute", xalign=0), True, True, 0)
+        self.mute_sw = Gtk.Switch()
+        self._mute_handler = self.mute_sw.connect("notify::active", self._mute_changed)
+        mrow.pack_end(self.mute_sw, False, False, 0)
+        c.pack_start(mrow, False, False, 0)
+        c.pack_start(Gtk.Separator(), False, False, 0)
+        c.pack_start(popover.heading("Output"), False, False, 0)
+        self.sink_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        c.pack_start(self.sink_box, False, False, 0)
+        c.pack_start(Gtk.Separator(), False, False, 0)
+        c.pack_start(popover.link_button("Sound Settings…", lambda: (pop.dismiss(), spawn(["pavucontrol"]))),
+                     False, False, 0)
+        pop.on_show = self._refresh_volume
+
+    def _build_clock_popover(self):
+        pop = Popover(280)
+        self.clock_pop = pop
+        c = pop.content
+        self.date_lbl = Gtk.Label(xalign=0)
+        c.pack_start(self.date_lbl, False, False, 0)
+        cal = Gtk.Calendar()
+        c.pack_start(cal, False, False, 0)
+        row = Gtk.Box()
+        row.pack_start(Gtk.Label(label="24-hour clock", xalign=0), True, True, 0)
+        sw = Gtk.Switch()
+        sw.set_active(self.shell.settings.get("clock_24h", True))
+        sw.connect("notify::active", lambda w, p: update_setting("clock_24h", w.get_active()))
+        row.pack_end(sw, False, False, 0)
+        c.pack_start(row, False, False, 0)
+        c.pack_start(Gtk.Separator(), False, False, 0)
+        c.pack_start(popover.link_button("Date & Time Settings…",
+                                         lambda: (pop.dismiss(), spawn(["slope-settings", "--page", "clock"]))),
+                     False, False, 0)
+
+        def today():
+            now = time.localtime()
+            cal.select_month(now.tm_mon - 1, now.tm_year)
+            cal.select_day(now.tm_mday)
+            sw.set_active(self.shell.settings.get("clock_24h", True))
+        pop.on_show = today
+
+    def _sinks(self):
+        """[(name, description)] of audio outputs, and the default one."""
+        if not have("pactl"):
+            return [], None
+        default = run_quiet(["pactl", "get-default-sink"]).strip() or None
+        sinks, name = [], None
+        for line in run_quiet(["pactl", "list", "sinks"]).splitlines():
+            line = line.strip()
+            if line.startswith("Name:"):
+                name = line.split(":", 1)[1].strip()
+            elif line.startswith("Description:") and name:
+                sinks.append((name, line.split(":", 1)[1].strip()))
+                name = None
+        return sinks, default
+
     def _refresh_volume(self):
         vol, muted = self._read_volume()
+        sinks, default = self._sinks()
+        real = [s for s in sinks if s[0] != "auto_null"]
         self.vol_scale.handler_block(self._vol_handler)
         self.vol_scale.set_value(vol or 0)
         self.vol_scale.handler_unblock(self._vol_handler)
-        self.mute_item.handler_block(self._mute_handler)
-        self.mute_item.set_active(muted)
-        self.mute_item.handler_unblock(self._mute_handler)
-        self.vol_label.set_label("Sound — %s" % ("%d%%" % vol if vol is not None else "no output device"))
+        self.vol_scale.set_sensitive(vol is not None)
+        self.mute_sw.handler_block(self._mute_handler)
+        self.mute_sw.set_active(muted)
+        self.mute_sw.handler_unblock(self._mute_handler)
+        self.vol_pct.set_text("%d%%" % vol if vol is not None else "")
+        for ch in self.sink_box.get_children():
+            ch.destroy()
+        if not real:
+            lbl = Gtk.Label(label="No sound output found", xalign=0)
+            lbl.get_style_context().add_class("dim-label")
+            self.sink_box.pack_start(lbl, False, False, 0)
+        group = None
+        for name, desc in real:
+            rb = Gtk.RadioButton.new_with_label_from_widget(group, desc)
+            group = group or rb
+            rb.set_active(name == default)
+            rb.connect("toggled", lambda b, n=name: b.get_active() and (
+                spawn(["pactl", "set-default-sink", n]), GLib.timeout_add(300, self._refresh_volume_once)))
+            self.sink_box.pack_start(rb, False, False, 0)
+        self.sink_box.show_all()
         self._set_vol_icon(vol, muted)
+
+    def _refresh_volume_once(self):
+        vol, muted = self._read_volume()
+        self._set_vol_icon(vol, muted)
+        return False
 
     def _refresh_volume_icon(self):
         self._set_vol_icon(*self._read_volume())
@@ -621,8 +710,14 @@ class Panel(Gtk.Window):
     def _vol_changed(self, scale):
         v = int(scale.get_value())
         spawn(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "%d%%" % v])
-        self.vol_label.set_label("Sound — %d%%" % v)
+        if v > 0 and self.mute_sw.get_active():
+            self.mute_sw.set_active(False)
+        self.vol_pct.set_text("%d%%" % v)
         self._set_vol_icon(v, False)
+
+    def _mute_changed(self, sw, _p):
+        spawn(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "1" if sw.get_active() else "0"])
+        self._set_vol_icon(int(self.vol_scale.get_value()), sw.get_active())
 
     # network
     def _nm_ready(self, src, res):

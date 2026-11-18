@@ -188,7 +188,18 @@ class AppIndex:
         return None
 
 
-def icon_for(appinfo, size, fallback="application-x-executable"):
+def letter_icon(name, size):
+    """Glossy generated icon for apps that ship none."""
+    import cairo
+    from . import art
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, size, size)
+    cr = cairo.Context(surf)
+    art.draw_letter_icon(cr, size * 0.04, size * 0.04, size * 0.92, name)
+    return Gdk.pixbuf_get_from_surface(surf, 0, 0, size, size)
+
+
+def icon_for(appinfo, size, fallback="application-x-executable", name=None):
+    """Pixbuf for an app.  Apps without a usable icon get a generated one."""
     theme = Gtk.IconTheme.get_default()
     names = []
     if appinfo is not None:
@@ -204,15 +215,21 @@ def icon_for(appinfo, size, fallback="application-x-executable"):
                         pass
             elif isinstance(gicon, Gio.ThemedIcon):
                 names.extend(gicon.get_names())
-    names.append(fallback)
-    for n in names:
-        try:
-            pb = theme.load_icon(n, size, Gtk.IconLookupFlags.FORCE_SIZE)
-            if pb is not None:
-                return pb
-        except GLib.Error:
-            continue
-    return None
+        for n in names:
+            if theme.has_icon(n):
+                try:
+                    pb = theme.load_icon(n, size, Gtk.IconLookupFlags.FORCE_SIZE)
+                    if pb is not None:
+                        return pb
+                except GLib.Error:
+                    pass
+        return letter_icon(name or friendly_name(appinfo), size)
+    if name:
+        return letter_icon(name, size)
+    try:
+        return theme.load_icon(fallback, size, Gtk.IconLookupFlags.FORCE_SIZE)
+    except GLib.Error:
+        return None
 
 
 def launch(appinfo, uris=None):

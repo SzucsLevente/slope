@@ -20,4 +20,5 @@ if [ "$BACKEND" = glx ]; then
   [ $(( $(date +%s) - start )) -lt 15 ] || exit 0
   echo "picom glx backend failed, falling back to xrender" >>"$LOG"
 fi
-exec picom --config "$CONF" --backend xrender --blur-method none >>"$LOG" 2>&1
+# (blur is ignored by the xrender backend; do not pass --blur-method none, it crashes picom 12)
+exec picom --config "$CONF" --backend xrender >>"$LOG" 2>&1

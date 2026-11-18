@@ -8,6 +8,8 @@ from gi.repository import GdkX11, GLib, GObject, Wnck  # noqa: E402
 from .xutil import X11  # noqa: E402
 from .common import SHELL_CLASS, AppIndex, desktop_key, friendly_name, launch  # noqa: E402
 
+_GRAVEYARD = []
+
 APP_TYPES = (Wnck.WindowType.NORMAL, Wnck.WindowType.DIALOG, Wnck.WindowType.UTILITY)
 
 
@@ -82,6 +84,10 @@ class Apps(GObject.Object):
         self._queue()
 
     def _on_closed(self, screen, w):
+        # libwnck crashes if a closed window's object is finalised from Python
+        # later on (e.g. when a menu that referenced it is garbage-collected).
+        # Keep closed windows alive for the life of the shell; they are small.
+        _GRAVEYARD.append(w)
         self._keycache.pop(w.get_xid(), None)
         self._queue()
 

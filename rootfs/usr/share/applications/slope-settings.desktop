@@ -2,7 +2,7 @@
 Name=System Settings
 Comment=Wallpaper, Dock, displays, clock and more
 Exec=slope-settings
-Icon=preferences-system
+Icon=slope-settings
 Terminal=false
 Type=Application
 Categories=Settings;System;

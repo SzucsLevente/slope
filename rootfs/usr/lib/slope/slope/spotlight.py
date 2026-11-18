@@ -14,7 +14,7 @@ gi.require_foreign("cairo")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import SHARE, friendly_name, launch, spawn  # noqa: E402
+from .common import SHARE, friendly_name, icon_for, launch, spawn  # noqa: E402
 
 W = 680
 
@@ -128,7 +128,21 @@ class Spotlight(Gtk.Window):
         disp = Gdk.Display.get_default()
         mon = disp.get_primary_monitor() or disp.get_monitor(0)
         g = mon.get_geometry()
-        self.move(g.x + (g.width - W) // 2, g.y + int(g.height * 0.22))
+        self._x = g.x + (g.width - W) // 2
+        self._y = g.y + int(g.height * 0.22)
+        # slide down a little while fading in
+        self._anim_step = 0
+        self.move(self._x, self._y - 14)
+        self.set_opacity(0.0)
+        GLib.timeout_add(16, self._appear)
+
+    def _appear(self):
+        self._anim_step += 1
+        t = min(1.0, self._anim_step / 9.0)
+        e = 1 - (1 - t) ** 3
+        self.move(self._x, int(self._y - 14 * (1 - e)))
+        self.set_opacity(e)
+        return t < 1.0
 
     def _maybe_quit(self):
         if not self.is_active() and self._focused_once:
@@ -180,7 +194,9 @@ class Spotlight(Gtk.Window):
         row = Gtk.ListBoxRow()
         row.action = action
         b = Gtk.Box(spacing=10)
-        if isinstance(icon, Gio.Icon):
+        if isinstance(icon, Gio.AppInfo):
+            img = Gtk.Image.new_from_pixbuf(icon_for(icon, 32))
+        elif isinstance(icon, Gio.Icon):
             img = Gtk.Image.new_from_gicon(icon, Gtk.IconSize.DND)
         else:
             img = Gtk.Image.new_from_icon_name(icon or "application-x-executable", Gtk.IconSize.DND)
@@ -232,7 +248,7 @@ class Spotlight(Gtk.Window):
             sub = "Application"
             if name != a.get_name():
                 sub = "Application — %s" % a.get_name()
-            rows.append(self._row(a.get_icon(), name, sub, ("app", a)))
+            rows.append(self._row(a, name, sub, ("app", a)))
         for title, page, icon in SETTINGS_PAGES:
             if ql in title.lower():
                 rows.append(self._row(icon, title, "System Settings", ("settings", page)))

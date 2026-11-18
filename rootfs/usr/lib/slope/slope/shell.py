@@ -33,6 +33,8 @@ class Desktop(Gtk.Window):
         self.connect("draw", self._draw)
         self.connect("button-press-event", self._press)
         self._cache = None
+        self._old = None
+        self._fade = 1.0
         self.place()
 
     def place(self):
@@ -70,13 +72,33 @@ class Desktop(Gtk.Window):
             self._cache = self._render(a.width, a.height)
         cr.set_source_surface(self._cache, 0, 0)
         cr.paint()
+        if self._old is not None and self._fade < 1.0:
+            # cross-fade from the previous wallpaper
+            cr.set_source_surface(self._old, 0, 0)
+            cr.paint_with_alpha(1.0 - self._fade)
         return False
 
     def reload(self):
-        self._cache = None
-        self.queue_draw()
+        """New wallpaper: cross-fade into it."""
+        old = self._cache
+        a = self.get_allocation()
+        self._cache = self._render(a.width, a.height) if a.width > 1 else None
+        if old is None or self._cache is None:
+            self.queue_draw()
+            return
+        self._old, self._fade = old, 0.0
+
+        def step():
+            self._fade = min(1.0, self._fade + 0.06)
+            self.queue_draw()
+            if self._fade >= 1.0:
+                self._old = None
+                return False
+            return True
+        GLib.timeout_add(16, step)
 
     def _press(self, w, ev):
+        self.shell.panel.dismiss_popovers()
         if ev.button != 3:
             return False
         menu = Gtk.Menu()
@@ -156,9 +178,11 @@ class Shell:
 
     def _settings_changed(self, *args):
         new = load_settings()
+        wallpaper_changed = new.get("wallpaper") != self.settings.get("wallpaper")
         self.settings.clear()
         self.settings.update(new)
-        self.desktop.reload()
+        if wallpaper_changed:
+            self.desktop.reload()
         self.dock.configure()
         self.panel._tick()
 
@@ -281,7 +305,8 @@ def main():
     Gdk.set_program_class("Slope")
     Shell()
     Gtk.main()
-    return 0
+    # skip interpreter teardown: finalising libwnck windows at exit can crash
+    os._exit(0)
 
 
 if __name__ == "__main__":

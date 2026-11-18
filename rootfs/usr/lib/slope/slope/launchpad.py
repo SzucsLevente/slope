@@ -12,7 +12,7 @@ import cairo
 import gi
 
 from . import art
-from .common import (SHARE, desktop_key, friendly_name, launch, load_settings,
+from .common import (SHARE, desktop_key, friendly_name, icon_for, launch, load_settings,
                      update_setting)
 
 gi.require_version("Gtk", "3.0")
@@ -54,6 +54,15 @@ CSS = b"""
   background-image: linear-gradient(to bottom, rgba(140,198,255,0.55), rgba(47,134,243,0.40));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.5), 0 0 12px rgba(80, 160, 255, 0.5);
 }
+.slope-launchpad flowboxchild image {
+  transition: -gtk-icon-transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.slope-launchpad flowboxchild {
+  transition: opacity 260ms ease-out, background-image 150ms ease-out;
+}
+/* opening: icons start large and transparent, then settle (like macOS Launchpad) */
+.slope-launchpad.zoom flowboxchild image { -gtk-icon-transform: scale(1.3); }
+.slope-launchpad.zoom flowboxchild { opacity: 0; }
 .slope-launchpad label.app {
   color: #ffffff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
@@ -177,7 +186,9 @@ class Launchpad(Gtk.Window):
         self._focused = False
         self.connect("focus-in-event", lambda *_: setattr(self, "_focused", True))
         self.set_opacity(0.0)
+        self.get_style_context().add_class("zoom")
         GLib.timeout_add(16, self._fade_in)
+        GLib.timeout_add(40, lambda: self.get_style_context().remove_class("zoom") or False)
 
     # -- content -----------------------------------------------------------
     def _populate(self):
@@ -197,20 +208,7 @@ class Launchpad(Gtk.Window):
                                                   " ".join(a.get_keywords() or []),
                                                   a.get_executable()])).lower()
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-            img = Gtk.Image()
-            gicon = a.get_icon()
-            info = theme.lookup_by_gicon(gicon, ICON, Gtk.IconLookupFlags.FORCE_SIZE) if gicon else None
-            pb = None
-            if info is not None:
-                try:
-                    pb = info.load_icon()
-                except GLib.Error:
-                    pb = None
-            if pb is None:
-                img.set_from_icon_name("application-x-executable", Gtk.IconSize.DIALOG)
-                img.set_pixel_size(ICON)
-            else:
-                img.set_from_pixbuf(pb)
+            img = Gtk.Image.new_from_pixbuf(icon_for(a, ICON))
             box.pack_start(img, False, False, 0)
             lbl = Gtk.Label(label=friendly_name(a))
             lbl.set_ellipsize(Pango.EllipsizeMode.END)

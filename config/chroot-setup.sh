@@ -133,6 +133,7 @@ systemctl enable NetworkManager systemd-resolved iwd 2>/dev/null || true
 systemctl mask wpa_supplicant.service 2>/dev/null || true
 chmod 600 /etc/netplan/*.yaml
 install -Dm644 /usr/share/backgrounds/slope/wifi-256.png /usr/share/icons/hicolor/256x256/apps/slope-wifi.png
+install -Dm644 /usr/share/backgrounds/slope/settings-256.png /usr/share/icons/hicolor/256x256/apps/slope-settings.png
 gtk-update-icon-cache -q -f /usr/share/icons/hicolor || true
 
 echo "--- live session"

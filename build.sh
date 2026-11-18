@@ -28,7 +28,7 @@ log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" = 0 ] || die "please run as root: sudo $0"
-for tool in debootstrap mksquashfs xorriso grub-mkrescue mformat; do
+for tool in debootstrap mksquashfs xorriso grub-mkrescue mformat curl; do
   command -v "$tool" >/dev/null || die "missing '$tool'. Install: apt install debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin grub-common mtools dosfstools"
 done
 [ -d /usr/lib/grub/i386-pc ] || die "missing BIOS GRUB modules: apt install grub-pc-bin"
@@ -91,13 +91,15 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 1b. patched Openbox (full-colour PNG title-bar buttons), built once in a
-#     throwaway chroot and cached in $WORK/debs/openbox-<patch hash>
+# 1b. locally built packages, made once in a throwaway chroot and cached in
+#     $WORK/debs/local-<hash>:
+#       - Openbox with full-colour PNG title-bar buttons (packages/openbox)
+#       - libconfig 1.7 + picom 12 back-ported for window animations (packages/picom)
 # ---------------------------------------------------------------------------
-PATCH_KEY=$(cat "$HERE"/packages/openbox/*.patch | sha256sum | cut -c1-12)
-DEBS="$WORK/debs/openbox-$PATCH_KEY"
-if ! ls "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
-  log "Building patched Openbox"
+LOCAL_KEY=$(cat "$HERE"/packages/openbox/*.patch "$HERE"/packages/picom/sources.txt | sha256sum | cut -c1-12)
+DEBS="$WORK/debs/local-$LOCAL_KEY"
+if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
+  log "Building local packages (Openbox patch, libconfig 1.7, picom 12)"
   [ -f "$BASE" ] || die "missing $BASE"
   umount_chroot "$OBBUILD"
   rm -rf "${OBBUILD:?}"
@@ -111,6 +113,12 @@ if ! ls "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
   cp -L /etc/resolv.conf "$OBBUILD/etc/resolv.conf" 2>/dev/null || true
   mkdir -p "$OBBUILD/build"
   cp "$HERE"/packages/openbox/*.patch "$OBBUILD/build/"
+  # source packages from the Ubuntu archive pool
+  grep -v '^\s*#' "$HERE/packages/picom/sources.txt" | grep -v '^\s*$' | while read -r dir files; do
+    for f in $files; do
+      curl -fsSL -o "$OBBUILD/build/$f" "$MIRROR/pool/$dir/$f" || die "cannot download $f"
+    done
+  done
   in_root "$OBBUILD" apt-get update
   in_root "$OBBUILD" apt-get -y install --no-install-recommends dpkg-dev build-essential fakeroot patch
   in_root "$OBBUILD" apt-get -y build-dep --no-install-recommends openbox
@@ -118,9 +126,19 @@ if ! ls "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
     for p in ../*.patch; do patch -p1 < "$p"; done &&
     sed -i "1s/(\([^)]*\))/(\1+slope1)/" debian/changelog &&
     DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us'
+  in_root "$OBBUILD" /bin/sh -ec 'cd /build && dpkg-source -x --no-check libconfig_*.dsc &&
+    cd libconfig-1.7*/ && apt-get -y build-dep --no-install-recommends ./ &&
+    sed -i "1s/(\([^)]*\))/(\1~slope24.04)/" debian/changelog &&
+    DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us &&
+    dpkg -i ../libconfig11_*.deb ../libconfig-dev_*.deb'
+  in_root "$OBBUILD" /bin/sh -ec 'cd /build && dpkg-source -x --no-check picom_*.dsc &&
+    cd picom-*/ && apt-get -y build-dep --no-install-recommends ./ &&
+    sed -i "1s/(\([^)]*\))/(\1~slope24.04)/" debian/changelog &&
+    DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us -d'
   mkdir -p "$DEBS"
   cp "$OBBUILD"/build/openbox_*_amd64.deb "$OBBUILD"/build/libobrender32v5_*.deb \
-     "$OBBUILD"/build/libobt2v5_*.deb "$DEBS/"
+     "$OBBUILD"/build/libobt2v5_*.deb "$OBBUILD"/build/libconfig11_*.deb \
+     "$OBBUILD"/build/picom_*_amd64.deb "$DEBS/"
   umount_chroot "$OBBUILD"
   rm -rf "${OBBUILD:?}"
 fi
@@ -154,10 +172,10 @@ in_chroot apt-get -y upgrade
 mapfile -t PKGS < <(grep -v '^\s*#' "$HERE/config/packages.txt" | grep -v '^\s*$')
 in_chroot apt-get -y install --no-install-recommends "${PKGS[@]}"
 
-log "Installing patched Openbox"
+log "Installing locally built packages (Openbox, picom 12)"
 mkdir -p "$CHROOT/var/cache/slope-debs"
 cp "$DEBS"/*.deb "$CHROOT/var/cache/slope-debs/"
-in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb && apt-mark hold openbox libobrender32v5 libobt2v5'
+in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb && apt-mark hold openbox libobrender32v5 libobt2v5 picom'
 rm -rf "$CHROOT/var/cache/slope-debs"
 
 # ---------------------------------------------------------------------------

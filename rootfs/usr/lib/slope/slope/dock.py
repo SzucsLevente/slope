@@ -7,7 +7,7 @@ import cairo
 import gi
 
 gi.require_version("PangoCairo", "1.0")
-from gi.repository import Gdk, GLib, Gtk, Pango, PangoCairo  # noqa: E402
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import art  # noqa: E402
 from .common import icon_for, spawn  # noqa: E402
@@ -16,14 +16,16 @@ TRASH_DIR = os.path.join(GLib.get_user_data_dir(), "Trash", "files")
 
 
 class Slot:
-    __slots__ = ("kind", "group", "x", "size", "width")
+    __slots__ = ("kind", "group", "x", "size", "width", "grow", "target")
 
-    def __init__(self, kind, group=None):
-        self.kind = kind        # "app", "sep", "trash"
+    def __init__(self, kind, group=None, grow=1.0):
+        self.kind = kind        # "app", "sep", "trash", "launchpad"
         self.group = group
         self.x = 0.0
         self.size = 0.0
         self.width = 0.0
+        self.grow = grow        # 0..1: icons pop in when apps start, shrink away when they quit
+        self.target = 1.0
 
     @property
     def key(self):
@@ -68,6 +70,8 @@ class Dock(Gtk.Window):
         self.bounces = {}
         self._anim_id = None
         self._trash_full = False
+        self._label_key = None
+        self._label_start = 0.0
 
         self.apps.connect("changed", lambda *_: self.refresh())
         self.apps.connect("app-launched", self._on_launched)
@@ -93,11 +97,30 @@ class Dock(Gtk.Window):
         self.refresh()
 
     def refresh(self):
-        slots = [Slot("launchpad")] + [Slot("app", g) for g in self.apps.groups()]
+        first = not self.slots
+        old = {sl.key: (i, sl) for i, sl in enumerate(self.slots) if sl.kind == "app"}
+        slots = [Slot("launchpad")]
+        for g in self.apps.groups():
+            prev = old.pop(g.key, None)
+            if prev is None:
+                sl = Slot("app", g, grow=1.0 if first else 0.0)
+            else:
+                sl = prev[1]
+                sl.group = g
+            sl.target = 1.0
+            slots.append(sl)
+        # apps that went away shrink out of the Dock where they were
+        for key, (idx, sl) in sorted(old.items(), key=lambda kv: kv[1][0]):
+            if sl.grow <= 0.02:
+                continue
+            sl.target = 0.0
+            slots.insert(min(idx, len(slots)), sl)
         slots.append(Slot("sep"))
         slots.append(Slot("trash"))
         self.slots = slots
         self.place()
+        if any(abs(sl.grow - sl.target) > 0.01 for sl in slots):
+            self._kick()
         self.queue_draw()
 
     def base_width(self):
@@ -124,7 +147,7 @@ class Dock(Gtk.Window):
     # -- layout -------------------------------------------------------------
     def _layout(self):
         S, M, gap = self.S, self.M, self.gap
-        base_total = self.base_width()
+        base_total = sum(gap * 2 if sl.kind == "sep" else (S + gap) * sl.grow for sl in self.slots)
         bx = (self.W - base_total) / 2.0
         R = S * 2.4
         total = 0.0
@@ -140,9 +163,9 @@ class Dock(Gtk.Window):
                 d = abs(self.mouse_x - c)
                 if d < R:
                     f = (math.cos(math.pi * d / R) + 1) / 2.0
-            sl.size = S + (M - S) * f * self.mag
-            sl.width = sl.size + gap
-            bx += S + gap
+            sl.size = (S + (M - S) * f * self.mag) * sl.grow
+            sl.width = sl.size + gap * sl.grow
+            bx += (S + gap) * sl.grow
             total += sl.width
         x = (self.W - total) / 2.0
         for sl in self.slots:
@@ -152,7 +175,7 @@ class Dock(Gtk.Window):
 
     def _slot_at(self, x):
         for sl in self.slots:
-            if sl.kind != "sep" and sl.x <= x < sl.x + sl.width:
+            if sl.kind != "sep" and sl.target > 0 and sl.x <= x < sl.x + sl.width:
                 return sl
         return None
 
@@ -182,13 +205,28 @@ class Dock(Gtk.Window):
         for k, (start, settle) in list(self.bounces.items()):
             if now - start > 8 or (settle and now >= settle):
                 del self.bounces[k]
+        growing = False
+        for sl in self.slots:
+            if sl.grow != sl.target:
+                sl.grow += (sl.target - sl.grow) * 0.22
+                if abs(sl.grow - sl.target) < 0.01:
+                    sl.grow = sl.target
+                else:
+                    growing = True
+        if any(sl.target == 0 and sl.grow == 0 for sl in self.slots):
+            self.slots = [sl for sl in self.slots if not (sl.target == 0 and sl.grow == 0)]
+            self.place()
+        fading = self.hover and self._label_alpha() < 1.0
         self.queue_draw()
-        if self.mag == target and not self.bounces:
+        if self.mag == target and not self.bounces and not growing and not fading:
             self._anim_id = None
             if not self.hover:
                 self.mouse_x = None
             return False
         return True
+
+    def _label_alpha(self):
+        return min(1.0, (time.monotonic() - self._label_start) / 0.15)
 
     def _on_launched(self, apps, key):
         period = 0.62
@@ -233,11 +271,13 @@ class Dock(Gtk.Window):
             return False
         self.hover = False
         self.pressed = None
+        self._label_key = None
         self._update_input_shape()
         self._kick()
         return False
 
     def _press(self, w, ev):
+        self.shell.panel.dismiss_popovers()
         sl = self._slot_at(ev.x)
         self.pressed = sl
         self.queue_draw()
@@ -346,6 +386,30 @@ class Dock(Gtk.Window):
 
     # -- drawing ------------------------------------------------------------
     @staticmethod
+    def _is_generic_icon(pb):
+        """True if pb is just the toolkit's stand-in "application" icon."""
+        small = pb.scale_simple(16, 16, GdkPixbuf.InterpType.BILINEAR)
+        refs = []
+        # Openbox gives icon-less windows this stand-in icon
+        try:
+            refs.append(GdkPixbuf.Pixbuf.new_from_file("/usr/share/slope/default-window-icon.png"))
+        except GLib.Error:
+            pass
+        theme = Gtk.IconTheme.get_default()
+        for name in ("application-x-executable", "application-default-icon"):
+            try:
+                refs.append(theme.load_icon(name, 48, Gtk.IconLookupFlags.FORCE_SIZE))
+            except GLib.Error:
+                pass
+        for ref in refs:
+            if ref is None or ref.get_has_alpha() != small.get_has_alpha():
+                continue
+            a, b = small.get_pixels(), ref.scale_simple(16, 16, GdkPixbuf.InterpType.BILINEAR).get_pixels()
+            if len(a) == len(b) and sum(abs(x - y) for x, y in zip(a, b)) / len(a) < 14:
+                return True
+        return False
+
+    @staticmethod
     def _art_icon(px, painter):
         surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, px, px)
         cr = cairo.Context(surf)
@@ -367,10 +431,15 @@ class Dock(Gtk.Window):
             elif sl.group.appinfo is not None:
                 pb = icon_for(sl.group.appinfo, px)
             else:
+                # a window with no .desktop entry: use its own icon, or make one
                 w = getattr(sl.group, "icon_window", None)
-                pb = w.get_icon() if w is not None else None
+                pb = None
+                if w is not None and not w.get_icon_is_fallback():
+                    pb = w.get_icon()
+                    if pb is not None and self._is_generic_icon(pb):
+                        pb = None
                 if pb is None:
-                    pb = icon_for(None, px)
+                    pb = icon_for(None, px, name=sl.group.name)
             self.icons[key] = pb
         return pb
 
@@ -399,6 +468,8 @@ class Dock(Gtk.Window):
                     cr.set_source_rgba(1, 1, 1, 0.45)
                     cr.rectangle(cx - 0.5, baseline - S + 4, 1, S - 8)
                 cr.fill()
+                continue
+            if sl.size < 1:
                 continue
             pb = self._icon(sl)
             if pb is None:
@@ -437,15 +508,21 @@ class Dock(Gtk.Window):
                 cr.set_source_rgba(0, 0, 0, 0.35)
                 cr.mask(pat)
             cr.restore()
-            if sl.kind == "app" and sl.group.running:
+            if sl.kind == "app" and sl.group.running and sl.grow > 0.6:
                 self._dot(cr, ix + size / 2.0, H - (self.shelf_h * 0.28 + 3 if self.style == "shelf" else 4.5))
 
         # name label above the hovered icon
         if self.hover and self.mouse_x is not None and not self.menu_open:
             sl = self._slot_at(self.mouse_x)
             if sl is not None:
+                if sl.key != self._label_key:
+                    self._label_key, self._label_start = sl.key, time.monotonic()
+                    self._kick()
                 name = {"trash": "Trash", "launchpad": "Launchpad"}.get(sl.kind) or sl.group.name
+                cr.push_group()
                 self._label(cr, sl.x + sl.width / 2.0, baseline - sl.size - 10, name)
+                cr.pop_group_to_source()
+                cr.paint_with_alpha(self._label_alpha())
         return False
 
     def _shelf(self, cr, xl, xr):
