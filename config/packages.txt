@@ -21,6 +21,7 @@ pkexec
 plymouth
 plymouth-theme-spinner
 pciutils
+pci.ids
 usbutils
 lsb-release
 less

@@ -1,5 +1,6 @@
 #!/bin/sh
 # Started by Openbox once the window manager is up.
+mkdir -p "$HOME/.cache" "$HOME/.config/slope"
 /usr/lib/slope/slope-compositor &
 
 # The shell (desktop, top bar, dock).  Restarted automatically if it ever crashes.

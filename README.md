@@ -4,6 +4,14 @@
 that feels like macOS. It boots as a live ISO, from a USB stick or a virtual
 machine.
 
+![Slope desktop with System Settings and the Slope menu open](docs/screenshot-settings.png)
+
+| TextEdit running | …after clicking the red ✕: window gone, app still running |
+|---|---|
+| ![](docs/screenshot-textedit.png) | ![](docs/screenshot-closed-app.png) |
+
+*(Screenshots from the actual ISO booted in QEMU.)*
+
 - **Global menu bar** at the top. The menus of the focused app (File, Edit,
   View…) live in the top bar, not inside the window. This works for GTK apps
   (through `appmenu-gtk-module`) and Qt apps. Apps that don't export a menu
@@ -27,7 +35,7 @@ machine.
   maths (`12*7+3`).
 - **System Settings**: wallpapers, Dock size, magnification and style, display
   resolution, clock, keyboard shortcuts. **About This Computer** and
-  **Force Quit** are in the  menu.
+  **Force Quit** are in the Slope (logo) menu.
 - Boot splash, GRUB menu and four procedurally drawn wallpapers (Aqua Slopes,
   Sunset Ridge, Aurora, Graphite).
 
@@ -103,7 +111,7 @@ config/chroot-setup.sh    image customisation run inside the chroot
 rootfs/                   files copied into the image
   usr/lib/slope/slope/    the desktop shell (Python + GTK 3)
     shell.py              entry point: desktop, top bar and dock in one process
-    panel.py              top bar,  menu, app menu, status icons, clock
+    panel.py              top bar, Slope menu, app menu, status icons, clock
     dbusmenu.py           global menu: AppMenu registrar + dbusmenu client
     dock.py               the glass dock
     apps.py               running-app / window tracking (libwnck)

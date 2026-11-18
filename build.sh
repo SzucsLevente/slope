@@ -100,7 +100,8 @@ rm -f "$CHROOT/etc/apt/sources.list.d/ubuntu.sources"
 printf '#!/bin/sh\nexit 101\n' > "$CHROOT/usr/sbin/policy-rc.d"
 chmod +x "$CHROOT/usr/sbin/policy-rc.d"
 echo slope > "$CHROOT/etc/hostname"
-cp /etc/resolv.conf "$CHROOT/etc/resolv.conf" 2>/dev/null || true
+rm -f "$CHROOT/etc/resolv.conf"
+cp -L /etc/resolv.conf "$CHROOT/etc/resolv.conf" 2>/dev/null || true
 # hosts that need a proxy (CI, corporate networks) can pass it through
 if [ -n "${http_proxy:-}" ]; then
   echo "Acquire::http::Proxy \"$http_proxy\";" > "$CHROOT/etc/apt/apt.conf.d/90build-proxy"

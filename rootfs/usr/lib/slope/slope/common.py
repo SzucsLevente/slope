@@ -10,6 +10,11 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
+from . import restore_app_env  # noqa: E402
+
+Gtk.init_check(None)
+restore_app_env()
+
 CONFIG_DIR = os.path.join(GLib.get_user_config_dir(), "slope")
 SETTINGS_PATH = os.path.join(CONFIG_DIR, "settings.json")
 SHARE = "/usr/share/slope"

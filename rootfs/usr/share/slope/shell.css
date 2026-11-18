@@ -41,7 +41,7 @@ menuitem.slope-slider-item, menuitem.slope-slider-item:hover {
   padding: 6px 12px;
 }
 .accelerator { color: alpha(#1d1d1f, 0.5); }
-menuitem:hover .accelerator { color: rgba(255, 255, 255, 0.85); }
+menu menuitem:hover .accelerator { color: rgba(255, 255, 255, 0.85); }
 
 /* Spotlight */
 .slope-spotlight { background: transparent; }
