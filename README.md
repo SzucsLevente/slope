@@ -14,6 +14,10 @@ machine.
 |---|---|
 | ![](docs/screenshot-launchpad.png) | ![](docs/screenshot-installer.png) |
 
+| Wi-Fi (iwd) |
+|---|
+| ![](docs/screenshot-wifi.png) |
+
 *(Screenshots from the actual ISO booted in QEMU, and from a Slope system installed with it.)*
 
 - **Global menu bar** at the top. The menus of the focused app (File, Edit,
@@ -45,6 +49,13 @@ machine.
 - **Crazy glassy shiny widgets**: Aqua-style gel buttons, a pulsing blue
   default button, gel scrollbars, candy progress bars with moving stripes,
   glossy sliders and switches, frosted translucent menus.
+- **Wi-Fi app** (iwd): a glossy window with a Wi-Fi on/off switch, nearby
+  networks with signal bars, Join / Disconnect, hidden networks
+  ("Other Network…"), saved networks with Auto-Join and Forget, and the
+  Ethernet status. The top bar's network menu lists the same networks, and
+  you can join them from there; it asks for the password when needed.
+- **Wired internet works out of the box**: plug in a cable and NetworkManager
+  connects. DNS goes through systemd-resolved.
 - **Spotlight** (Super+Space): search apps, files and settings, and do quick
   maths (`12*7+3`).
 - **System Settings**: wallpapers, Dock size, magnification and style, display
@@ -113,6 +124,19 @@ The live session logs in automatically as user **slope**. That user can run
 **Erase disk** really does erase everything on that drive, so back up first.
 Secure Boot must be off.
 
+## Networking
+
+| What | Handled by |
+|---|---|
+| Wired (Ethernet) | NetworkManager (`/etc/NetworkManager/conf.d/20-slope.conf`) |
+| Wi-Fi | iwd, including DHCP (`/etc/iwd/main.conf`). Saved networks live in `/var/lib/iwd` |
+| DNS | systemd-resolved |
+
+The installer copies Wi-Fi networks you joined in the live session to the
+installed system. If a Wi-Fi card isn't found, it usually needs firmware.
+Most is included (`linux-firmware`), but a few Broadcom chips need the
+non-free `broadcom-sta-dkms` driver.
+
 ## Keyboard shortcuts
 
 The **Super** (Windows) key works as the Mac **⌘ Command** key.
@@ -149,6 +173,7 @@ rootfs/                   files copied into the image
     ctl.py, xutil.py      slope-ctl: close = hide-last-window, quit, hide…
     spotlight.py          Spotlight search
     launchpad.py          Launchpad (all apps grid)
+    wifi.py, iwd.py       Wi-Fi app and iwd D-Bus client + password agent
     settings.py           System Settings, About This Computer, Force Quit
     art.py                procedural wallpapers, logo, gel drawing
   usr/share/themes/Slope/ GTK 3 theme (gtk.css) + Openbox theme (traffic lights)

@@ -38,6 +38,8 @@ zip
 network-manager
 network-manager-gnome
 wpasupplicant
+iwd
+systemd-resolved
 wireless-regdb
 iw
 

@@ -299,6 +299,7 @@ class SettingsWindow(Gtk.Window):
 
         self._add("appearance", "Wallpaper", self._appearance())
         self._add("dock", "Dock & Windows", self._dock())
+        self._add("network", "Wi-Fi & Network", self._network())
         self._add("displays", "Displays", self._displays())
         self._add("clock", "Date & Time", self._clock())
         self._add("shortcuts", "Keyboard Shortcuts", self._shortcuts())
@@ -406,6 +407,25 @@ class SettingsWindow(Gtk.Window):
                         "<b>Quit</b> (⌘Q) to really close the app.</small>")
         note.get_style_context().add_class("dim-label")
         v.pack_start(note, False, False, 0)
+        return v
+
+    def _network(self):
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        v.pack_start(heading("Wi-Fi & Network"), False, False, 0)
+        note = Gtk.Label(xalign=0)
+        note.set_line_wrap(True)
+        note.set_text("Wi-Fi is handled by iwd and wired connections by NetworkManager. "
+                      "Ethernet connects automatically when you plug in a cable.")
+        v.pack_start(note, False, False, 0)
+        b = Gtk.Button(label="Open Wi-Fi…")
+        b.get_style_context().add_class("suggested-action")
+        b.set_halign(Gtk.Align.START)
+        b.connect("clicked", lambda *_: spawn(["slope-wifi"]))
+        v.pack_start(b, False, False, 0)
+        b2 = Gtk.Button(label="Advanced Network Settings…")
+        b2.set_halign(Gtk.Align.START)
+        b2.connect("clicked", lambda *_: spawn(["nm-connection-editor"]))
+        v.pack_start(b2, False, False, 0)
         return v
 
     def _displays(self):

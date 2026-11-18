@@ -8,6 +8,7 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 
 from . import art
 from .common import have, logout, power, run_quiet, spawn, update_setting
+from .iwd import Agent, Iwd, ethernet_status, signal_bars
 from .dbusmenu import DBusMenuClient, Registrar, apply_live, build_menu_items
 
 PANEL_H = 28
@@ -456,6 +457,9 @@ class Panel(Gtk.Window):
         self.net_menu.connect("show", lambda *_: self._fill_net_menu())
         self.net_item.set_submenu(self.net_menu)
         self.status.append(self.net_item)
+        self.iwd = Iwd()
+        self.iwd_agent = Agent(self.iwd)      # so joining from this menu can ask for passwords
+        self.iwd.connect("changed", lambda *_: self._refresh_net())
         self._nm = None
         Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, None,
                                   "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager",
@@ -636,50 +640,106 @@ class Panel(Gtk.Window):
         v = self._nm.get_cached_property(name)
         return v.unpack() if v is not None else None
 
+    @staticmethod
+    def _wifi_icon(bars):
+        return "network-wireless-signal-%s-symbolic" % {4: "excellent", 3: "good", 2: "ok", 1: "weak"}.get(bars, "none")
+
     def _refresh_net(self):
         state = self._nm_prop("State") or 0
         ctype = self._nm_prop("PrimaryConnectionType") or ""
-        if state >= 70:
-            icon = "network-wireless-signal-excellent-symbolic" if "wireless" in ctype else "network-wired-symbolic"
-        elif state >= 40:
-            icon = "network-wireless-acquiring-symbolic" if "wireless" in ctype else "network-wired-acquiring-symbolic"
+        d = self.iwd.primary() if self.iwd.running else None
+        if state >= 70 and "ethernet" in ctype:
+            icon = "network-wired-symbolic"
+        elif d and d["state"] == "connected":
+            strength = self.iwd.connected_strength(d["path"])
+            icon = self._wifi_icon(signal_bars(strength) if strength is not None else 4)
+        elif d and d["state"] in ("connecting", "roaming"):
+            icon = "network-wireless-acquiring-symbolic"
+        elif state >= 40 and "ethernet" in ctype:
+            icon = "network-wired-acquiring-symbolic"
+        elif d and not d["powered"]:
+            icon = "network-wireless-offline-symbolic"
         else:
             icon = "network-offline-symbolic"
         self.net_img.set_from_icon_name(icon, Gtk.IconSize.MENU)
+
+    def _net_item(self, net):
+        mi = Gtk.MenuItem()
+        box = Gtk.Box(spacing=8)
+        box.pack_start(Gtk.Image.new_from_icon_name(self._wifi_icon(net["bars"]), Gtk.IconSize.MENU),
+                       False, False, 0)
+        lbl = Gtk.Label(xalign=0)
+        name = GLib.markup_escape_text(net["name"])
+        lbl.set_markup("<b>%s</b>" % name if net["connected"] else name)
+        lbl.set_hexpand(True)
+        box.pack_start(lbl, True, True, 0)
+        if net["type"] != "open":
+            box.pack_end(Gtk.Image.new_from_icon_name("channel-secure-symbolic", Gtk.IconSize.MENU),
+                         False, False, 0)
+        if net["connected"]:
+            box.pack_end(Gtk.Image.new_from_icon_name("object-select-symbolic", Gtk.IconSize.MENU),
+                         False, False, 0)
+        mi.add(box)
+
+        def join(*_):
+            if net["connected"]:
+                return
+            self.iwd.connect_network(net["path"], on_error=lambda msg: None if "Cancel" in msg else spawn(
+                ["notify-send", "-i", "network-wireless-offline-symbolic",
+                 "Couldn’t join “%s”" % net["name"], msg]))
+        mi.connect("activate", join)
+        return mi
 
     def _fill_net_menu(self):
         for c in self.net_menu.get_children():
             self.net_menu.remove(c)
             c.destroy()
-        state = self._nm_prop("State") or 0
-        status = {70: "Connected", 60: "Connected (site only)", 50: "Connected (local only)",
-                  40: "Connecting…", 30: "Disconnecting…", 20: "Disconnected", 10: "Networking off"}
-        hdr = Gtk.MenuItem(label="Network: %s" % status.get(state, "Unavailable"))
+        d = self.iwd.primary() if self.iwd.running else None
+        if d is not None and d["station"] and d["powered"]:
+            self.iwd.scan(d["path"])
+        if not self.iwd.running:
+            head = "Wi-Fi: service not running"
+        elif d is None:
+            head = "Wi-Fi: no adapter found"
+        elif not d["powered"]:
+            head = "Wi-Fi: Off"
+        elif d["state"] == "connected":
+            head = "Wi-Fi: %s" % d["connected_name"]
+        elif d["state"] == "connecting":
+            head = "Wi-Fi: Connecting…"
+        else:
+            head = "Wi-Fi: Not connected"
+        hdr = Gtk.MenuItem(label=head)
         hdr.set_sensitive(False)
         self.net_menu.append(hdr)
-        out = run_quiet(["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list"], timeout=4) \
-            if have("nmcli") else ""
-        nets = []
-        seen = set()
-        for line in out.splitlines():
-            parts = line.replace("\\:", "\x00").split(":")
-            if len(parts) < 4:
-                continue
-            inuse, ssid, sig, sec = [p.replace("\x00", ":") for p in parts[:4]]
-            if not ssid or ssid in seen:
-                continue
-            seen.add(ssid)
-            nets.append((inuse == "*", ssid, int(sig or 0), sec))
-        if nets:
-            self.net_menu.append(sep())
-            t = Gtk.MenuItem(label="Wi-Fi Networks")
-            t.set_sensitive(False)
-            self.net_menu.append(t)
-            for inuse, ssid, sig, sec in nets[:12]:
-                lbl = "%s%s   %s" % ("✓ " if inuse else "    ", ssid, "🔒" if sec and sec != "--" else "")
-                mi = Gtk.MenuItem(label=lbl)
-                mi.connect("activate", lambda m, s=ssid, x=sec: self.shell.wifi_connect(s, x))
-                self.net_menu.append(mi)
+        if d is not None:
+            tog = Gtk.CheckMenuItem(label="Wi-Fi")
+            tog.set_active(d["powered"] and d["adapter_powered"])
+            tog.connect("toggled", lambda m, dev=d: self.iwd.set_powered(dev, m.get_active()))
+            self.net_menu.append(tog)
+            if d["powered"] and d["station"]:
+                nets = self.iwd.network_list(d["path"])
+                if nets:
+                    self.net_menu.append(sep())
+                    for n in nets[:10]:
+                        self.net_menu.append(self._net_item(n))
+                self.net_menu.append(cmd_item("Other Network…", cb=lambda: spawn(["slope-wifi"])))
         self.net_menu.append(sep())
+        eth = ethernet_status()
+        if eth:
+            for dev, state, conn, ip in eth[:3]:
+                if state.startswith("connected"):
+                    txt = "Ethernet: Connected" + (" (%s)" % ip.split("/")[0] if ip else "")
+                elif state == "unavailable":
+                    txt = "Ethernet: Cable unplugged"
+                elif state.startswith("connecting"):
+                    txt = "Ethernet: Connecting…"
+                else:
+                    txt = "Ethernet: Not connected"
+                it = Gtk.MenuItem(label=txt)
+                it.set_sensitive(False)
+                self.net_menu.append(it)
+            self.net_menu.append(sep())
+        self.net_menu.append(cmd_item("Wi-Fi Settings…", cb=lambda: spawn(["slope-wifi"])))
         self.net_menu.append(cmd_item("Network Settings…", cb=lambda: spawn(["nm-connection-editor"])))
         self.net_menu.show_all()

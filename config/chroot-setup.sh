@@ -126,9 +126,16 @@ gtk-icon-theme-name="Papirus"
 gtk-font-name="Inter 10"
 EOF
 
+echo "--- networking"
+# Wired: NetworkManager.  Wi-Fi: iwd.  DNS: systemd-resolved.
+systemctl enable NetworkManager systemd-resolved iwd 2>/dev/null || true
+# wpa_supplicant would fight iwd over the Wi-Fi card
+systemctl mask wpa_supplicant.service 2>/dev/null || true
+chmod 600 /etc/netplan/*.yaml
+install -Dm644 /usr/share/backgrounds/slope/wifi-256.png /usr/share/icons/hicolor/256x256/apps/slope-wifi.png
+gtk-update-icon-cache -q -f /usr/share/icons/hicolor || true
+
 echo "--- live session"
-# start the network on every boot
-systemctl enable NetworkManager 2>/dev/null || true
 systemctl set-default graphical.target
 # casper autologins the live user into the default (Slope) session
 mkdir -p /etc/lightdm/lightdm.conf.d

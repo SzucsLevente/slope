@@ -424,6 +424,30 @@ def draw_launchpad_icon(cr, x, y, s):
     _gloss(cr, x, y, s)
 
 
+def draw_wifi_icon(cr, x, y, s, bars=4, active=True):
+    """Glossy blue tile with white Wi-Fi arcs (dimmed arcs above the signal level)."""
+    if active:
+        _glossy_tile(cr, x, y, s, "#7fd8ff", "#1351c8")
+    else:
+        _glossy_tile(cr, x, y, s, "#d9dde5", "#8c94a3")
+    cx, cy = x + s / 2.0, y + s * 0.74
+    cr.save()
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    for i, r in enumerate((0.42, 0.30, 0.18)):
+        level = 3 - i            # outer arc needs 4 bars, inner needs 2
+        on = bars >= level + 1
+        cr.new_path()
+        cr.arc(cx, cy, s * r, math.pi * 1.25, math.pi * 1.75)
+        cr.set_line_width(s * 0.075)
+        cr.set_source_rgba(1, 1, 1, 1.0 if on else 0.35)
+        cr.stroke()
+    cr.arc(cx, cy, s * 0.06, 0, 2 * math.pi)
+    cr.set_source_rgba(1, 1, 1, 1)
+    cr.fill()
+    cr.restore()
+    _gloss(cr, x, y, s)
+
+
 def draw_installer_icon(cr, x, y, s):
     """Blue glossy tile with a hard drive and a downward arrow."""
     _glossy_tile(cr, x, y, s, "#7fd8ff", "#1338b8")
@@ -497,6 +521,8 @@ def _cli():
                lambda cr, w, h: draw_launchpad_icon(cr, 8, 8, w - 16))
     render_png(os.path.join(out, "installer-256.png"), 256, 256,
                lambda cr, w, h: draw_installer_icon(cr, 8, 8, w - 16))
+    render_png(os.path.join(out, "wifi-256.png"), 256, 256,
+               lambda cr, w, h: draw_wifi_icon(cr, 8, 8, w - 16))
 
     def welcome(cr, w, h):
         draw_wallpaper(cr, w, h, "aqua")
