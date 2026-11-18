@@ -1,0 +1,23 @@
+#!/bin/sh
+# Start picom.  Real GPUs get the GLX backend with frosted-glass blur;
+# software rendering (VMs) falls back to the lighter XRender backend.
+CONF=/usr/share/slope/picom.conf
+[ -f "$HOME/.config/slope/picom.conf" ] && CONF="$HOME/.config/slope/picom.conf"
+mkdir -p "$HOME/.cache"
+LOG="$HOME/.cache/slope-picom.log"
+
+RENDERER=$(glxinfo -B 2>/dev/null | grep -i "renderer string")
+case "$RENDERER" in
+  *llvmpipe*|*softpipe*|*SWR*|"") BACKEND=xrender ;;
+  *) BACKEND=glx ;;
+esac
+[ -n "$SLOPE_PICOM_BACKEND" ] && BACKEND="$SLOPE_PICOM_BACKEND"
+
+if [ "$BACKEND" = glx ]; then
+  start=$(date +%s)
+  picom --config "$CONF" --backend glx >>"$LOG" 2>&1
+  # it ran for a while and then exited: the session is over
+  [ $(( $(date +%s) - start )) -lt 15 ] || exit 0
+  echo "picom glx backend failed, falling back to xrender" >>"$LOG"
+fi
+exec picom --config "$CONF" --backend xrender --blur-method none >>"$LOG" 2>&1

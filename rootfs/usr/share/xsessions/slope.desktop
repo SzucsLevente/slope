@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Slope
+Comment=The glossy Slope desktop: global menu bar, dock and Mac-style windows
+Exec=slope-session
+TryExec=slope-session
+Type=Application
+DesktopNames=Slope

@@ -1,0 +1,26 @@
+#!/bin/sh
+# Slope X session entry point (started by LightDM via /usr/share/xsessions/slope.desktop)
+export XDG_CURRENT_DESKTOP=Slope
+export XDG_SESSION_DESKTOP=slope
+export DESKTOP_SESSION=slope
+export XDG_MENU_PREFIX=xfce-
+# global menu: GTK apps export their menu bars to the top bar
+export GTK_MODULES="${GTK_MODULES:+$GTK_MODULES:}appmenu-gtk-module"
+export UBUNTU_MENUPROXY=1
+# Qt apps follow the GTK theme and also use the global menu
+export QT_QPA_PLATFORMTHEME=gtk3
+
+mkdir -p "$HOME/.config/slope"
+xdg-user-dirs-update >/dev/null 2>&1 || true
+
+XS=/usr/share/slope/xsettingsd.conf
+[ -f "$HOME/.config/slope/xsettingsd.conf" ] && XS="$HOME/.config/slope/xsettingsd.conf"
+xsettingsd -c "$XS" >/dev/null 2>&1 &
+
+xsetroot -cursor_name left_ptr 2>/dev/null || true
+setxkbmap -option compose:ralt 2>/dev/null || true
+
+dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP \
+    XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_MODULES UBUNTU_MENUPROXY QT_QPA_PLATFORMTHEME 2>/dev/null || true
+
+exec openbox --config-file /usr/share/slope/openbox/rc.xml --startup /usr/lib/slope/slope-startup
