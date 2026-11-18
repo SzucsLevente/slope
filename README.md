@@ -10,7 +10,11 @@ machine.
 |---|---|
 | ![](docs/screenshot-textedit.png) | ![](docs/screenshot-closed-app.png) |
 
-*(Screenshots from the actual ISO booted in QEMU.)*
+| Launchpad | Installer |
+|---|---|
+| ![](docs/screenshot-launchpad.png) | ![](docs/screenshot-installer.png) |
+
+*(Screenshots from the actual ISO booted in QEMU, and from a Slope system installed with it.)*
 
 - **Global menu bar** at the top. The menus of the focused app (File, Edit,
   View…) live in the top bar, not inside the window. This works for GTK apps
@@ -20,8 +24,18 @@ machine.
 - **Dock** at the bottom: a 3D glass shelf with reflections, magnifying icons,
   bouncing launches, glowing "running" dots, name tooltips and right-click
   menus (Keep in Dock, Quit, the app's window list…).
-- **Mac-style windows**: red / yellow / green traffic-light buttons on the left
-  and soft shadows with rounded corners.
+- **Glossy Mac-style windows**: shiny red / yellow / green gel buttons on the
+  left (with ×, − and + on hover, graphite glass when the window is in the
+  background), soft shadows and rounded corners. Slope ships a small patch to
+  Openbox (`packages/openbox/`) so title-bar buttons can be full-colour PNGs.
+- **Launchpad**: the first icon in the Dock (also F4 or ⌘A). It's a full-screen
+  frosted grid of every installed app. Type to search, click to open, or
+  right-click → **Keep in Dock**.
+- **Installer**: double-click **Install Slope** in the Dock of the live
+  session, or use the welcome window that opens at start-up. The graphical
+  installer (Calamares) partitions the disk (erase, alongside another OS, or
+  manual), creates your user and installs the GRUB boot loader for BIOS or
+  UEFI.
 - **Closing a window does not quit the app**, just like on a Mac. The red ✕
   closes the window, but if it was the app's last window the app keeps running:
   it stays in the Dock with its glowing dot and its menu stays in the top bar.
@@ -83,6 +97,22 @@ The image is written to `out/slope-<version>-amd64.iso`. Set
 The live session logs in automatically as user **slope**. That user can run
 `sudo` without a password.
 
+### Installing to the disk
+
+1. Boot the USB stick and choose **Try Slope**.
+2. Click **Install Slope…** in the welcome window, or the **Install Slope** icon
+   in the Dock.
+3. Pick your language, time zone and keyboard, then the disk:
+   - **Erase disk**: Slope takes the whole drive.
+   - **Install alongside**: keeps Windows or another Linux system. GRUB lets
+     you choose which one to start.
+   - **Manual partitioning**: create the partitions yourself.
+4. Create your user account and click **Install**. When it's finished, restart
+   and remove the USB stick.
+
+**Erase disk** really does erase everything on that drive, so back up first.
+Secure Boot must be off.
+
 ## Keyboard shortcuts
 
 The **Super** (Windows) key works as the Mac **⌘ Command** key.
@@ -90,6 +120,7 @@ The **Super** (Windows) key works as the Mac **⌘ Command** key.
 | Shortcut | Action |
 |---|---|
 | ⌘ Space | Spotlight |
+| F4 / ⌘ A | Launchpad |
 | ⌘ W / Alt+F4 | Close window (app keeps running) |
 | ⌘ Q | Quit app |
 | ⌘ H / ⌥⌘ H | Hide app / hide others |
@@ -117,11 +148,14 @@ rootfs/                   files copied into the image
     apps.py               running-app / window tracking (libwnck)
     ctl.py, xutil.py      slope-ctl: close = hide-last-window, quit, hide…
     spotlight.py          Spotlight search
+    launchpad.py          Launchpad (all apps grid)
     settings.py           System Settings, About This Computer, Force Quit
     art.py                procedural wallpapers, logo, gel drawing
   usr/share/themes/Slope/ GTK 3 theme (gtk.css) + Openbox theme (traffic lights)
   usr/share/slope/        Openbox config, picom config, xsettings, shell CSS
-tools/gen-xbm.py          regenerates the traffic-light button bitmaps
+rootfs/etc/calamares/     installer configuration and branding
+packages/openbox/         patch: full-colour PNG title-bar buttons for Openbox
+tools/gen-xbm.py          regenerates the fallback (single-colour) button bitmaps
 tools/run-qemu.sh         boots the ISO in QEMU
 ```
 
@@ -139,8 +173,6 @@ System Settings → Dock & Windows.
 
 ## Limitations
 
-- The live system has no installer. It runs from the USB stick or DVD, and
-  changes are lost on reboot.
 - Apps that draw their own title bars (GTK headerbar / libadwaita apps) quit
   when their own close button is clicked, because the window manager never
   sees that click. The bundled apps all use normal title bars.

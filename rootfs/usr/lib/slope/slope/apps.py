@@ -11,6 +11,15 @@ from .common import SHELL_CLASS, AppIndex, desktop_key, friendly_name, launch  #
 APP_TYPES = (Wnck.WindowType.NORMAL, Wnck.WindowType.DIALOG, Wnck.WindowType.UTILITY)
 
 
+def is_live():
+    """True when running from the live USB/DVD (casper)."""
+    try:
+        with open("/proc/cmdline") as f:
+            return "boot=casper" in f.read()
+    except OSError:
+        return False
+
+
 class AppGroup:
     def __init__(self, key, appinfo=None, name=None, pinned=False):
         self.key = key
@@ -119,7 +128,9 @@ class Apps(GObject.Object):
 
     # -- groups --------------------------------------------------------------
     def groups(self):
-        pinned_ids = self.settings.get("dock_apps", [])
+        pinned_ids = list(self.settings.get("dock_apps", []))
+        if is_live() and "slope-install.desktop" not in pinned_ids:
+            pinned_ids.insert(0, "slope-install.desktop")
         groups = {}
         order = []
         for app_id in pinned_ids:

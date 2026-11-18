@@ -1,0 +1,10 @@
+# Boot menu settings for an installed Slope system (run update-grub after editing)
+GRUB_DEFAULT=0
+GRUB_TIMEOUT_STYLE=menu
+GRUB_TIMEOUT=3
+GRUB_DISTRIBUTOR="Slope"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_CMDLINE_LINUX=""
+GRUB_DISABLE_OS_PROBER=false
+GRUB_BACKGROUND="/usr/share/backgrounds/slope/grub.png"
+GRUB_GFXMODE=auto

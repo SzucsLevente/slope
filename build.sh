@@ -44,27 +44,33 @@ mkdir -p "$WORK" "$OUT"
 # ---------------------------------------------------------------------------
 # chroot mounts
 # ---------------------------------------------------------------------------
-mount_chroot() {
-  mount --bind /dev "$CHROOT/dev"
-  mount --bind /dev/pts "$CHROOT/dev/pts"
-  mount -t proc proc "$CHROOT/proc"
-  mount -t sysfs sysfs "$CHROOT/sys"
-  mount -t tmpfs tmpfs "$CHROOT/run"
-  mount -t tmpfs tmpfs "$CHROOT/tmp"
+mount_chroot() {  # [root]
+  local r=${1:-$CHROOT}
+  mount --bind /dev "$r/dev"
+  mount --bind /dev/pts "$r/dev/pts"
+  mount -t proc proc "$r/proc"
+  mount -t sysfs sysfs "$r/sys"
+  mount -t tmpfs tmpfs "$r/run"
+  mount -t tmpfs tmpfs "$r/tmp"
 }
-umount_chroot() {
+umount_chroot() {  # [root]
+  local r=${1:-$CHROOT}
   for m in tmp run sys proc dev/pts dev; do
-    if mountpoint -q "$CHROOT/$m" 2>/dev/null; then
-      umount -l "$CHROOT/$m" || true
+    if mountpoint -q "$r/$m" 2>/dev/null; then
+      umount -l "$r/$m" || true
     fi
   done
 }
-trap umount_chroot EXIT
-in_chroot() {
-  chroot "$CHROOT" /usr/bin/env -i \
+OBBUILD="$WORK/obbuild"
+trap 'umount_chroot; umount_chroot "$OBBUILD"' EXIT
+in_root() {  # root-dir command...
+  local r=$1
+  shift
+  chroot "$r" /usr/bin/env -i \
     HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 \
     DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true "$@"
 }
+in_chroot() { in_root "$CHROOT" "$@"; }
 
 # ---------------------------------------------------------------------------
 # 1. base system
@@ -82,6 +88,41 @@ else
   debootstrap --arch="$ARCH" --variant=minbase --components=main,universe \
     "$SUITE" "$CHROOT" "$MIRROR"
   tar -C "$CHROOT" -czf "$BASE" .
+fi
+
+# ---------------------------------------------------------------------------
+# 1b. patched Openbox (full-colour PNG title-bar buttons), built once in a
+#     throwaway chroot and cached in $WORK/debs/openbox-<patch hash>
+# ---------------------------------------------------------------------------
+PATCH_KEY=$(cat "$HERE"/packages/openbox/*.patch | sha256sum | cut -c1-12)
+DEBS="$WORK/debs/openbox-$PATCH_KEY"
+if ! ls "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
+  log "Building patched Openbox"
+  [ -f "$BASE" ] || die "missing $BASE"
+  umount_chroot "$OBBUILD"
+  rm -rf "${OBBUILD:?}"
+  mkdir -p "$OBBUILD"
+  tar -C "$OBBUILD" -xzf "$BASE"
+  mount_chroot "$OBBUILD"
+  printf 'deb %s %s main universe\ndeb-src %s %s main universe\ndeb %s %s-updates main universe\ndeb-src %s %s-updates main universe\n' \
+    "$MIRROR" "$SUITE" "$MIRROR" "$SUITE" "$MIRROR" "$SUITE" "$MIRROR" "$SUITE" > "$OBBUILD/etc/apt/sources.list"
+  rm -f "$OBBUILD/etc/apt/sources.list.d/ubuntu.sources"
+  rm -f "$OBBUILD/etc/resolv.conf"
+  cp -L /etc/resolv.conf "$OBBUILD/etc/resolv.conf" 2>/dev/null || true
+  mkdir -p "$OBBUILD/build"
+  cp "$HERE"/packages/openbox/*.patch "$OBBUILD/build/"
+  in_root "$OBBUILD" apt-get update
+  in_root "$OBBUILD" apt-get -y install --no-install-recommends dpkg-dev build-essential fakeroot patch
+  in_root "$OBBUILD" apt-get -y build-dep --no-install-recommends openbox
+  in_root "$OBBUILD" /bin/sh -ec 'cd /build && apt-get source openbox && cd openbox-*/ &&
+    for p in ../*.patch; do patch -p1 < "$p"; done &&
+    sed -i "1s/(\([^)]*\))/(\1+slope1)/" debian/changelog &&
+    DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us'
+  mkdir -p "$DEBS"
+  cp "$OBBUILD"/build/openbox_*_amd64.deb "$OBBUILD"/build/libobrender32v5_*.deb \
+     "$OBBUILD"/build/libobt2v5_*.deb "$DEBS/"
+  umount_chroot "$OBBUILD"
+  rm -rf "${OBBUILD:?}"
 fi
 
 mount_chroot
@@ -112,6 +153,12 @@ in_chroot apt-get update
 in_chroot apt-get -y upgrade
 mapfile -t PKGS < <(grep -v '^\s*#' "$HERE/config/packages.txt" | grep -v '^\s*$')
 in_chroot apt-get -y install --no-install-recommends "${PKGS[@]}"
+
+log "Installing patched Openbox"
+mkdir -p "$CHROOT/var/cache/slope-debs"
+cp "$DEBS"/*.deb "$CHROOT/var/cache/slope-debs/"
+in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb && apt-mark hold openbox libobrender32v5 libobt2v5'
+rm -rf "$CHROOT/var/cache/slope-debs"
 
 # ---------------------------------------------------------------------------
 # 3. Slope itself

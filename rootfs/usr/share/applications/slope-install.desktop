@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Install Slope
+Comment=Install Slope on this computer's disk
+Exec=slope-install
+Icon=slope-installer
+Terminal=false
+Type=Application
+Categories=System;
+Keywords=install;installer;calamares;disk;
+StartupWMClass=calamares

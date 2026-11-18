@@ -119,3 +119,18 @@ xfce4-taskmanager
 falkon
 atril
 xarchiver
+
+# --- installer (live session only; removed from the installed system) --------
+calamares
+rsync
+squashfs-tools
+grub-efi-amd64-bin
+grub-pc-bin
+grub2-common
+efibootmgr
+os-prober
+dosfstools
+mtools
+btrfs-progs
+xfsprogs
+e2fsprogs

@@ -67,6 +67,8 @@
     <keybind key="W-m"><action name="Iconify"/></keybind>
     <keybind key="W-C-f"><action name="ToggleFullscreen"/></keybind>
     <keybind key="W-space"><action name="Execute"><command>slope-spotlight</command></action></keybind>
+    <keybind key="F4"><action name="Execute"><command>slope-launchpad</command></action></keybind>
+    <keybind key="W-a"><action name="Execute"><command>slope-launchpad</command></action></keybind>
     <keybind key="C-space"><action name="Execute"><command>slope-spotlight</command></action></keybind>
     <keybind key="W-comma"><action name="Execute"><command>slope-settings</command></action></keybind>
     <keybind key="W-A-Escape"><action name="Execute"><command>slope-settings --force-quit</command></action></keybind>
@@ -190,6 +192,13 @@
       <decor>no</decor>
       <focus>yes</focus>
       <layer>above</layer>
+      <skip_taskbar>yes</skip_taskbar>
+    </application>
+    <application name="slope-launchpad">
+      <decor>no</decor>
+      <focus>yes</focus>
+      <layer>above</layer>
+      <fullscreen>yes</fullscreen>
       <skip_taskbar>yes</skip_taskbar>
     </application>
     <application class="Slope" type="dialog">

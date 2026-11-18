@@ -1,0 +1,40 @@
+---
+componentName: slope
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 920px,620px
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         Slope
+    shortProductName:    Slope
+    version:             1.0
+    shortVersion:        1.0
+    versionedName:       Slope 1.0 "Glacier"
+    shortVersionedName:  Slope 1.0
+    bootloaderEntryName: Slope
+    productUrl:          https://github.com/SzucsLevente/slope
+    supportUrl:          https://github.com/SzucsLevente/slope/issues
+    knownIssuesUrl:      https://github.com/SzucsLevente/slope/issues
+    releaseNotesUrl:     https://github.com/SzucsLevente/slope
+
+images:
+    productIcon:    "logo.png"
+    productLogo:    "logo.png"
+    productWelcome: "welcome.png"
+
+slideshow:
+    - "calamares-slide-1.png"
+    - "calamares-slide-2.png"
+    - "calamares-slide-3.png"
+    - "calamares-slide-4.png"
+slideshowAPI: 1
+
+style:
+   SidebarBackground:        "#0f2a78"
+   SidebarText:              "#ffffff"
+   SidebarTextCurrent:       "#ffffff"
+   SidebarBackgroundCurrent: "#2f86f3"

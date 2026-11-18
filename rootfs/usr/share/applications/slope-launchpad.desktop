@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Launchpad
+Comment=See all your apps in one place
+Exec=slope-launchpad
+Icon=slope-launchpad
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=apps;applications;launcher;

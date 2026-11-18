@@ -1,0 +1,12 @@
+#!/bin/sh
+# Start the Slope installer (Calamares) with root rights.
+if [ "$(id -u)" -ne 0 ]; then
+  sudo -n -E /usr/bin/slope-install "$@" && exit 0
+  exec pkexec /usr/bin/slope-install "$@"
+fi
+export HOME=/root
+export XDG_RUNTIME_DIR=/run/user/0
+mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
+export QT_QPA_PLATFORMTHEME=gtk3
+mkdir -p /var/log/installer
+exec calamares "$@" >>/var/log/installer/slope-installer.log 2>&1

@@ -12,7 +12,8 @@ import os
 import sys
 
 # apps that should really quit when their last window is closed
-QUIT_ON_CLOSE = {"slope-settings", "slope-spotlight", "slope-about", "slope-forcequit"}
+QUIT_ON_CLOSE = {"slope-settings", "slope-spotlight", "slope-about", "slope-forcequit",
+                 "slope-welcome", "slope-launchpad", "calamares"}
 
 
 def _setting(key, default):

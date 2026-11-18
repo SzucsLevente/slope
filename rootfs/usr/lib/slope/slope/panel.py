@@ -287,10 +287,15 @@ class Panel(Gtk.Window):
 
     def _slope_menu(self):
         menu = Gtk.Menu()
+        from .apps import is_live
+        if is_live():
+            menu.append(cmd_item("Install Slope…", cb=lambda: spawn(["slope-install"])))
+            menu.append(sep())
         for it in (
             cmd_item("About This Computer", cb=lambda: spawn(["slope-settings", "--about"])),
             sep(),
             cmd_item("System Settings…", cb=lambda: spawn(["slope-settings"])),
+            cmd_item("Launchpad", "F4", cb=lambda: spawn(["slope-launchpad"])),
             cmd_item("Spotlight Search", "⌘Space", cb=lambda: spawn(["slope-spotlight"])),
             sep(),
             cmd_item("Force Quit…", "⌥⌘Esc", cb=lambda: spawn(["slope-settings", "--force-quit"])),

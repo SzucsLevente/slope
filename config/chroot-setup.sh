@@ -12,6 +12,16 @@ echo UTC > /etc/timezone
 echo "--- artwork"
 mkdir -p /usr/share/backgrounds/slope
 PYTHONPATH=/usr/lib/slope python3 -m slope.art /usr/share/backgrounds/slope
+# glossy traffic-light buttons for the (patched) Openbox theme
+cp /usr/share/backgrounds/slope/titlebuttons/*.png /usr/share/themes/Slope/openbox-3/
+rm -rf /usr/share/backgrounds/slope/titlebuttons
+# Launchpad icon and installer branding
+install -Dm644 /usr/share/backgrounds/slope/launchpad-256.png /usr/share/icons/hicolor/256x256/apps/slope-launchpad.png
+install -Dm644 /usr/share/backgrounds/slope/installer-256.png /usr/share/icons/hicolor/256x256/apps/slope-installer.png
+mkdir -p /etc/calamares/branding/slope
+cp /usr/share/backgrounds/slope/logo-256.png /etc/calamares/branding/slope/logo.png
+cp /usr/share/backgrounds/slope/calamares-welcome.png /etc/calamares/branding/slope/welcome.png
+cp /usr/share/backgrounds/slope/calamares-slide-*.png /etc/calamares/branding/slope/
 cp /usr/share/backgrounds/slope/logo-128.png /usr/share/plymouth/themes/slope/logo.png
 cp /usr/share/backgrounds/slope/dot.png /usr/share/plymouth/themes/slope/dot.png
 install -Dm644 /usr/share/backgrounds/slope/logo-256.png /usr/share/icons/hicolor/256x256/apps/slope.png
@@ -36,10 +46,16 @@ rm -f /usr/share/xsessions/openbox.desktop /usr/share/xsessions/lightdm-xsession
 
 # hide technical launchers from Spotlight
 for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton \
-         display-im6.q16 display-im7.q16 nm-applet; do
-  if [ -f "/usr/share/applications/$f.desktop" ]; then
-    grep -q '^NoDisplay=' "/usr/share/applications/$f.desktop" || \
-      sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "/usr/share/applications/$f.desktop"
+         display-im6.q16 display-im7.q16 nm-applet thunar-settings thunar-bulk-rename \
+         thunar-volman-settings org.xfce.mousepad-settings xfce4-terminal-settings \
+         calamares org.kde.calamares xfce4-notifyd-config vim; do
+  d="/usr/share/applications/$f.desktop"
+  if [ -f "$d" ]; then
+    if grep -q '^NoDisplay=' "$d"; then
+      sed -i 's/^NoDisplay=.*/NoDisplay=true/' "$d"
+    else
+      sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "$d"
+    fi
   fi
 done
 # nm-applet has no tray to live in: the top bar shows network status instead

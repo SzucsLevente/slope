@@ -163,6 +163,47 @@ class AboutWindow(Gtk.Window):
         self.show_all()
 
 
+class WelcomeWindow(Gtk.Window):
+    """Shown on the live USB: try Slope or install it."""
+
+    def __init__(self):
+        super().__init__(title="Welcome to Slope")
+        self.set_wmclass("slope-welcome", "Slope-welcome")
+        self.set_resizable(False)
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_skip_taskbar_hint(True)
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        v.set_border_width(32)
+        self.add(v)
+        v.pack_start(Gtk.Image.new_from_pixbuf(logo_pixbuf(128)), False, False, 0)
+        t = Gtk.Label()
+        t.set_markup("<span size='xx-large' weight='bold'>Welcome to Slope</span>")
+        v.pack_start(t, False, False, 0)
+        body = Gtk.Label()
+        body.set_line_wrap(True)
+        body.set_max_width_chars(52)
+        body.set_justify(Gtk.Justification.CENTER)
+        body.set_text("You are running Slope from the USB stick or DVD. Look around as long as you "
+                      "like: nothing is changed on this computer.\n\nWhen you are ready, install "
+                      "Slope on the disk. You can also start the installer later from the Dock "
+                      "or the Slope menu.")
+        v.pack_start(body, False, False, 6)
+        bb = Gtk.Box(spacing=12)
+        bb.set_halign(Gtk.Align.CENTER)
+        bb.set_margin_top(10)
+        tryit = Gtk.Button(label="Try Slope")
+        tryit.connect("clicked", lambda *_: self.destroy())
+        install = Gtk.Button(label="Install Slope…")
+        install.get_style_context().add_class("suggested-action")
+        install.connect("clicked", lambda *_: (spawn(["slope-install"]), self.destroy()))
+        bb.pack_start(tryit, False, False, 0)
+        bb.pack_start(install, False, False, 0)
+        v.pack_start(bb, False, False, 0)
+        self.connect("destroy", Gtk.main_quit)
+        self.show_all()
+        install.grab_focus()
+
+
 class ForceQuitWindow(Gtk.Window):
     def __init__(self):
         super().__init__(title="Force Quit Applications")
@@ -520,6 +561,7 @@ def main():
     ap.add_argument("--force-quit", action="store_true")
     ap.add_argument("--logout", action="store_true")
     ap.add_argument("--screenshot", action="store_true")
+    ap.add_argument("--welcome", action="store_true")
     args = ap.parse_args()
     GLib.set_prgname("slope-settings")
     if args.screenshot:
@@ -530,7 +572,9 @@ def main():
         Gtk.init(None)
         confirm_logout()
         return 0
-    if args.about:
+    if args.welcome:
+        WelcomeWindow()
+    elif args.about:
         AboutWindow()
     elif args.force_quit:
         ForceQuitWindow()

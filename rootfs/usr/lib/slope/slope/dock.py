@@ -93,7 +93,7 @@ class Dock(Gtk.Window):
         self.refresh()
 
     def refresh(self):
-        slots = [Slot("app", g) for g in self.apps.groups()]
+        slots = [Slot("launchpad")] + [Slot("app", g) for g in self.apps.groups()]
         slots.append(Slot("sep"))
         slots.append(Slot("trash"))
         self.slots = slots
@@ -255,6 +255,8 @@ class Dock(Gtk.Window):
         ts = ev.time
         if sl.kind == "trash":
             spawn(["thunar", "trash:///"])
+        elif sl.kind == "launchpad":
+            spawn(["slope-launchpad"])
         elif ev.button == 2 and sl.group.appinfo is not None:
             self.apps.launch(sl.group)
         elif ev.button == 1:
@@ -267,7 +269,12 @@ class Dock(Gtk.Window):
     def _popup_menu(self, sl, ev):
         menu = Gtk.Menu()
         menu.get_style_context().add_class("slope-dock-menu")
-        if sl.kind == "trash":
+        if sl.kind == "launchpad":
+            menu.append(self._mi("Open Launchpad", lambda: spawn(["slope-launchpad"])))
+            menu.append(self._mi("Spotlight Search", lambda: spawn(["slope-spotlight"])))
+            menu.append(Gtk.SeparatorMenuItem())
+            menu.append(self._mi("Dock Settings…", lambda: spawn(["slope-settings", "--page", "dock"])))
+        elif sl.kind == "trash":
             menu.append(self._mi("Open", lambda: spawn(["thunar", "trash:///"])))
             menu.append(Gtk.SeparatorMenuItem())
             menu.append(self._mi("Empty Trash", lambda: spawn(["gio", "trash", "--empty"]), self._trash_full))
@@ -338,6 +345,13 @@ class Dock(Gtk.Window):
         return True
 
     # -- drawing ------------------------------------------------------------
+    @staticmethod
+    def _art_icon(px, painter):
+        surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, px, px)
+        cr = cairo.Context(surf)
+        painter(cr, px * 0.03, px * 0.03, px * 0.94)
+        return Gdk.pixbuf_get_from_surface(surf, 0, 0, px, px)
+
     def _icon(self, sl):
         key = sl.key
         pb = self.icons.get(key)
@@ -345,6 +359,11 @@ class Dock(Gtk.Window):
             px = int(self.M * self.get_scale_factor())
             if sl.kind == "trash":
                 pb = icon_for(None, px, "user-trash-full" if self._trash_full else "user-trash")
+            elif sl.kind == "launchpad":
+                if Gtk.IconTheme.get_default().has_icon("slope-launchpad"):
+                    pb = icon_for(None, px, "slope-launchpad")
+                else:
+                    pb = self._art_icon(px, art.draw_launchpad_icon)
             elif sl.group.appinfo is not None:
                 pb = icon_for(sl.group.appinfo, px)
             else:
@@ -425,7 +444,7 @@ class Dock(Gtk.Window):
         if self.hover and self.mouse_x is not None and not self.menu_open:
             sl = self._slot_at(self.mouse_x)
             if sl is not None:
-                name = "Trash" if sl.kind == "trash" else sl.group.name
+                name = {"trash": "Trash", "launchpad": "Launchpad"}.get(sl.kind) or sl.group.name
                 self._label(cr, sl.x + sl.width / 2.0, baseline - sl.size - 10, name)
         return False
 
