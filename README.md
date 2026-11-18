@@ -56,6 +56,15 @@ machine.
   you can join them from there; it asks for the password when needed.
 - **Wired internet works out of the box**: plug in a cable and NetworkManager
   connects. DNS goes through systemd-resolved.
+- **Animations**: windows zoom in when they open and shrink away when they
+  close. Minimizing or closing an app's last window shrinks it into the Dock,
+  and it grows back out when restored. Dock icons pop in and out, Launchpad
+  zooms, Spotlight slides in and wallpapers cross-fade. Slope back-ports
+  picom 12 for this (`packages/picom/`).
+- **Top-bar popovers** for Sound (volume slider, mute, output device) and the
+  Clock (calendar).
+- **Every app gets an icon**: apps or windows that ship none get a glossy
+  generated one with their initials.
 - **Spotlight** (Super+Space): search apps, files and settings, and do quick
   maths (`12*7+3`).
 - **System Settings**: wallpapers, Dock size, magnification and style, display
