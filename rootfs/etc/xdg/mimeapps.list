@@ -1,0 +1,18 @@
+[Default Applications]
+inode/directory=thunar.desktop
+text/plain=org.xfce.mousepad.desktop
+text/x-python=org.xfce.mousepad.desktop
+text/x-shellscript=org.xfce.mousepad.desktop
+text/markdown=org.xfce.mousepad.desktop
+image/png=org.xfce.ristretto.desktop
+image/jpeg=org.xfce.ristretto.desktop
+image/gif=org.xfce.ristretto.desktop
+image/webp=org.xfce.ristretto.desktop
+image/svg+xml=org.xfce.ristretto.desktop
+application/pdf=atril.desktop
+text/html=org.kde.falkon.desktop
+x-scheme-handler/http=org.kde.falkon.desktop
+x-scheme-handler/https=org.kde.falkon.desktop
+application/zip=xarchiver.desktop
+application/x-tar=xarchiver.desktop
+application/x-compressed-tar=xarchiver.desktop

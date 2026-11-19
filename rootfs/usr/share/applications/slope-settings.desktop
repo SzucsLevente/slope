@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=System Settings
+Comment=Wallpaper, Dock, displays, clock and more
+Exec=slope-settings
+Icon=slope-settings
+Terminal=false
+Type=Application
+Categories=Settings;System;
+StartupWMClass=slope-settings
+Keywords=preferences;settings;wallpaper;dock;display;

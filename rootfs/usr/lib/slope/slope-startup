@@ -1,0 +1,21 @@
+#!/bin/sh
+# Started by Openbox once the window manager is up.
+mkdir -p "$HOME/.cache" "$HOME/.config/slope"
+/usr/lib/slope/slope-compositor &
+
+# The shell (desktop, top bar, dock).  Restarted automatically if it ever crashes.
+(
+  while xprop -root >/dev/null 2>&1; do
+    slope-shell >>"$HOME/.cache/slope-shell.log" 2>&1
+    sleep 1
+  done
+) &
+
+# Welcome window on the very first login
+if grep -q "boot=casper" /proc/cmdline 2>/dev/null; then
+  # live USB/DVD: offer to install
+  (sleep 4; slope-settings --welcome) &
+elif [ ! -e "$HOME/.config/slope/welcomed" ]; then
+  mkdir -p "$HOME/.config/slope" && touch "$HOME/.config/slope/welcomed"
+  (sleep 4; slope-settings --about) &
+fi

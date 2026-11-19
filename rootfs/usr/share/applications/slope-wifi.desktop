@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Wi-Fi
+Comment=Join Wi-Fi networks and see the network status
+Exec=slope-wifi
+Icon=slope-wifi
+Terminal=false
+Type=Application
+Categories=Settings;Network;
+Keywords=wifi;wireless;wlan;network;internet;iwd;ethernet;
+StartupWMClass=slope-wifi

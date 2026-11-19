@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Slope
+Comment=Glossy, glassy theme for the Slope desktop
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=Slope
+MetacityTheme=Slope
+IconTheme=Papirus
+CursorTheme=Adwaita
+ButtonLayout=close,minimize,maximize:

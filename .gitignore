@@ -1,0 +1,5 @@
+out/
+__pycache__/
+*.pyc
+*.iso
+rootfs/usr/share/themes/Slope/openbox-3/*.png

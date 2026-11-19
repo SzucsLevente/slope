@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Slope
+Description=Glossy Slope boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/slope
+ScriptFile=/usr/share/plymouth/themes/slope/slope.script

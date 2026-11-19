@@ -1,0 +1,85 @@
+--- a/obrender/theme.c	2026-11-18 11:59:53.984977896 +0000
++++ b/obrender/theme.c	2026-11-18 11:59:54.032610295 +0000
+@@ -61,6 +61,71 @@
+ static int parse_inline_number(const char *p);
+ static RrPixel32* read_c_image(gint width, gint height, const guint8 *data);
+ static void set_default_appearance(RrAppearance *a);
++/* --- Slope: full-colour PNG title-bar buttons ---------------------------
++   If a theme directory contains e.g. close.png, close_hover.png,
++   close_pressed.png, close_inactive.png ... those RGBA images are drawn
++   instead of the single-colour .xbm masks, so buttons can be glossy. */
++static RrImageCache *slope_png_cache = NULL;
++
++static RrImage* slope_load_png(const gchar *path, const gchar *file)
++{
++    RrImage *img = NULL;
++    gchar *s;
++
++    if (!path) return NULL;
++    s = g_build_filename(path, file, NULL);
++    if (g_file_test(s, G_FILE_TEST_IS_REGULAR)) {
++        if (!slope_png_cache) slope_png_cache = RrImageCacheNew(64);
++        img = RrImageNewFromName(slope_png_cache, s);
++    }
++    g_free(s);
++    return img;
++}
++
++static void slope_apply_png(RrAppearance *a, const gchar *path,
++                            const gchar *btnname, const gchar *state,
++                            gboolean focused)
++{
++    const gchar *suffix = "";
++    gchar name[160];
++    RrImage *img = NULL;
++    gboolean plain;
++
++    if (!strcmp(state, "pressed")) suffix = "_pressed";
++    else if (!strcmp(state, "disabled")) suffix = "_disabled";
++    else if (!strcmp(state, "hover")) suffix = "_hover";
++    else if (!strcmp(state, "unpressed_toggled")) suffix = "_toggled";
++    else if (!strcmp(state, "pressed_toggled")) suffix = "_toggled_pressed";
++    else if (!strcmp(state, "hover_toggled")) suffix = "_toggled_hover";
++    plain = strcmp(suffix, "_hover") && strcmp(suffix, "_toggled_hover");
++
++    if (!focused) {
++        g_snprintf(name, sizeof(name), "%s%s_inactive.png", btnname, suffix);
++        img = slope_load_png(path, name);
++        if (!img && plain) {
++            g_snprintf(name, sizeof(name), "%s_inactive.png", btnname);
++            img = slope_load_png(path, name);
++        }
++    }
++    if (!img) {
++        g_snprintf(name, sizeof(name), "%s%s.png", btnname, suffix);
++        img = slope_load_png(path, name);
++    }
++    if (!img && strcmp(suffix, "")) {
++        g_snprintf(name, sizeof(name), "%s.png", btnname);
++        img = slope_load_png(path, name);
++    }
++    if (!img) return;
++
++    a->texture[0].type = RR_TEXTURE_IMAGE;
++    a->texture[0].data.image.image = img;
++    a->texture[0].data.image.alpha = 255;
++    a->texture[0].data.image.tx = 0;
++    a->texture[0].data.image.ty = 0;
++    a->texture[0].data.image.twidth = 0;
++    a->texture[0].data.image.theight = 0;
++}
++
+ static void read_button_styles(XrmDatabase db, const RrInstance *inst, 
+                                gchar *path,
+                                const RrTheme *theme, RrButton *btn, 
+@@ -1527,7 +1592,9 @@
+     btn->a_unfocused_##type->texture[0].data.mask.color = \
+         btn->unfocused_##type##_color; \
+     btn->a_focused_##type->texture[0].data.mask.color = \
+-        btn->focused_##type##_color;
++        btn->focused_##type##_color; \
++    slope_apply_png(btn->a_focused_##type, path, btnname, #type, TRUE); \
++    slope_apply_png(btn->a_unfocused_##type, path, btnname, #type, FALSE);
+ 
+     READ_BUTTON_APPEARANCE("unpressed", unpressed, 0);
+     READ_BUTTON_APPEARANCE("pressed", pressed, 0);
