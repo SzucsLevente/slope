@@ -59,6 +59,7 @@ class Dock(Gtk.Window):
         self.connect("button-press-event", self._press)
         self.connect("button-release-event", self._release)
         self.connect("realize", lambda *_: self._update_input_shape())
+        Gtk.IconTheme.get_default().connect("changed", lambda *_: (self.icons.clear(), self.queue_draw()))
 
         self.slots = []
         self.icons = {}

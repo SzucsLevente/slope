@@ -81,6 +81,16 @@ rename_app pavucontrol.desktop "Sound"
 rename_app org.pulseaudio.pavucontrol.desktop "Sound"
 update-desktop-database -q /usr/share/applications || true
 
+echo "--- glossy Slope icon theme"
+# every installed app (and popular ones people add later) on a glossy tile;
+# an apt hook (/etc/apt/apt.conf.d/99slope-icons) does the same after installs
+PYTHONPATH=/usr/lib/slope python3 -m slope.icons --update --popular
+
+echo "--- no snaps"
+# snapd is blocked by /etc/apt/preferences.d/no-snap.pref; make sure it is gone
+apt-get -y purge snapd 2>/dev/null || true
+rm -rf /snap /var/snap /var/lib/snapd 2>/dev/null || true
+
 echo "--- desktop defaults for every new user"
 mkdir -p /etc/skel/.config/slope /etc/skel/Desktop
 # Terminal: a clean light profile that suits the theme
@@ -122,7 +132,7 @@ EOF
 # GTK 2 apps
 cat > /etc/skel/.gtkrc-2.0 <<'EOF'
 gtk-theme-name="Adwaita"
-gtk-icon-theme-name="Papirus"
+gtk-icon-theme-name="Slope"
 gtk-font-name="Inter 10"
 EOF
 

@@ -194,6 +194,19 @@ EOF
 cp "$HERE/config/chroot-setup.sh" "$CHROOT/tmp/chroot-setup.sh"
 in_chroot /bin/bash /tmp/chroot-setup.sh
 
+# Firefox/Thunderbird as real .debs from Mozilla (Ubuntu's are snap wrappers).
+# Pinned in rootfs/etc/apt/preferences.d/mozilla-firefox.pref.
+mkdir -p "$CHROOT/etc/apt/keyrings"
+if curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
+     -o "$CHROOT/etc/apt/keyrings/packages.mozilla.org.asc"; then
+  printf 'Types: deb\nURIs: https://packages.mozilla.org/apt\nSuites: mozilla\nComponents: main\nSigned-By: /etc/apt/keyrings/packages.mozilla.org.asc\n' \
+    > "$CHROOT/etc/apt/sources.list.d/mozilla.sources"
+else
+  echo "warning: could not download Mozilla's signing key; the image will not have the Firefox .deb repository" >&2
+  rm -f "$CHROOT/etc/apt/keyrings/packages.mozilla.org.asc" "$CHROOT/etc/apt/sources.list.d/mozilla.sources"
+fi
+
+
 # ---------------------------------------------------------------------------
 # 4. clean up the image
 # ---------------------------------------------------------------------------

@@ -63,8 +63,16 @@ machine.
   picom 12 for this (`packages/picom/`).
 - **Top-bar popovers** for Sound (volume slider, mute, output device) and the
   Clock (calendar).
-- **Every app gets an icon**: apps or windows that ship none get a glossy
-  generated one with their initials.
+- **Slope icon theme**: every app icon sits on the same glossy porcelain tile.
+  When you install something with `apt`, a hook (`/etc/apt/apt.conf.d/99slope-icons`)
+  makes its tile straight away. Popular apps (Firefox, VS Code, Steam, Discord,
+  VLC, GIMP…) are pre-made. Apps or windows with no icon at all get a glossy
+  one with their initials. Run `sudo slope-icons --rebuild` to regenerate.
+- **New apps show up by themselves**: you get a notification when an app is
+  installed, and Launchpad marks it with a blue dot until you open it.
+- **No snaps**: snapd is blocked (`/etc/apt/preferences.d/no-snap.pref`), because
+  snap apps ignore the desktop theme. `sudo apt install firefox` gives the
+  real .deb from Mozilla's own repository.
 - **Spotlight** (Super+Space): search apps, files and settings, and do quick
   maths (`12*7+3`).
 - **System Settings**: wallpapers, Dock size, magnification and style, display
