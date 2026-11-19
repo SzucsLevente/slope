@@ -1,0 +1,68 @@
+# Slope: <decor>yes</decor> in an <application> rule forces a window frame
+# even on apps that ask for none, so every app gets the Slope title bar.
+--- a/openbox/client.h	2026-11-19 14:28:29.859078807 +0000
++++ b/openbox/client.h	2026-11-19 14:28:29.941438701 +0000
+@@ -302,6 +302,15 @@
+     */
+     gboolean undecorated;
+ 
++    /*! Slope: the per-app settings say <decor>yes</decor>, so the window
++      gets a frame even when its Motif hints ask for none (apps that draw
++      their own title bar: GTK headerbars, libadwaita, Electron, Chrome...)
++    */
++    gboolean force_decor;
++    /*! Slope: _NET_WM_WINDOW_TYPE only had types Openbox does not know
++      (notification, tooltip, popup menu...), never force a frame on those */
++    gboolean odd_type;
++
+     /*! A bitmask of values in the ObFunctions enum
+       The values in the variable specify the ways in which the user is allowed
+       to modify this window.
+--- a/openbox/client.c	2026-11-19 14:28:29.858996571 +0000
++++ b/openbox/client.c	2026-11-19 14:28:29.943097618 +0000
+@@ -268,6 +268,8 @@
+        we do this before setting up the frame so that it will reflect the
+        decorations of the window as it will be placed on screen.
+     */
++    if (self->force_decor)
++        client_setup_default_decor_and_functions(self);
+     client_setup_decor_undecorated(self);
+ 
+     /* specify that if we exit, the window should not be destroyed and
+@@ -962,6 +964,9 @@
+         self->shaded = !!settings->shade;
+     if (settings->decor != -1)
+         self->undecorated = !settings->decor;
++    self->force_decor = settings->decor == 1 && !self->odd_type &&
++        (self->type == OB_CLIENT_TYPE_NORMAL ||
++         self->type == OB_CLIENT_TYPE_DIALOG);
+     if (settings->iconic != -1)
+         self->iconic = !!settings->iconic;
+     if (settings->skip_pager != -1)
+@@ -1573,6 +1578,7 @@
+ 
+     self->type = -1;
+     self->transient = FALSE;
++    self->odd_type = FALSE;
+ 
+     if (OBT_PROP_GETA32(self->window, NET_WM_WINDOW_TYPE, ATOM, &val, &num)) {
+         /* use the first value that we know about in the array */
+@@ -1605,6 +1611,8 @@
+             if (self->type != (ObClientType) -1)
+                 break; /* grab the first legit type */
+         }
++        if (num > 0 && self->type == (ObClientType) -1)
++            self->odd_type = TRUE;
+         g_free(val);
+     }
+ 
+@@ -1856,7 +1864,8 @@
+ 
+     /* Mwm Hints are applied subtractively to what has already been chosen for
+        decor and functionality */
+-    if (self->mwmhints.flags & OB_MWM_FLAG_DECORATIONS) {
++    if ((self->mwmhints.flags & OB_MWM_FLAG_DECORATIONS) &&
++        !self->force_decor) {
+         if (! (self->mwmhints.decorations & OB_MWM_DECOR_ALL)) {
+             if (! ((self->mwmhints.decorations & OB_MWM_DECOR_HANDLE) ||
+                    (self->mwmhints.decorations & OB_MWM_DECOR_TITLE)))

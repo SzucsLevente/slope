@@ -71,8 +71,21 @@ class Apps(GObject.Object):
 
     # -- window bookkeeping ------------------------------------------------
     def _watch(self, w):
-        w.connect("state-changed", lambda *_: self._queue())
+        w.connect("state-changed", self._on_state)
         w.connect("class-changed", lambda *_: self._forget(w))
+
+    def _on_state(self, w, changed, new):
+        # A "closed" (hidden) window that comes back by any other route than
+        # the Dock -- the app opening it again itself, a second launch of a
+        # single-instance app, Alt+Tab... -- is a normal window again.
+        if changed & Wnck.WindowState.MINIMIZED and not new & Wnck.WindowState.MINIMIZED:
+            try:
+                if self.is_hidden(w):
+                    self.x.unhide(w.get_xid())
+                    self.x.flush()
+            except Exception:
+                pass
+        self._queue()
 
     def _forget(self, w):
         self._keycache.pop(w.get_xid(), None)

@@ -1,6 +1,21 @@
-# Slope does not use snaps: snap apps ignore the desktop theme and icons.
-# This keeps snapd (and Ubuntu's "transitional" debs that only install a
-# snap) from ever being installed.  Use the normal .deb packages instead.
-Package: snapd
-Pin: release a=*
+# Slope is completely snap-free: snap apps ignore the desktop theme and icons.
+#
+# snapd itself, and every Ubuntu "transitional" .deb that only exists to
+# install a snap behind your back, get a negative priority, so apt can never
+# install them -- not even as a dependency.  Firefox and Thunderbird come as
+# real .debs from Mozilla instead (see mozilla-firefox.pref).
+Package: snapd snap-confine ubuntu-core-launcher snapd-xdg-open snapd-login-service
+Pin: version *
+Pin-Priority: -10
+
+Package: chromium-browser chromium-browser-l10n chromium-chromedriver chromium-codecs-ffmpeg chromium-codecs-ffmpeg-extra
+Pin: release o=Ubuntu
+Pin-Priority: -10
+
+Package: lxd lxd-client lxd-installer lxd-agent-loader
+Pin: release o=Ubuntu
+Pin-Priority: -10
+
+Package: gnome-software-plugin-snap plasma-discover-backend-snap ubuntu-snappy ubuntu-snappy-cli firmware-updater snap-store
+Pin: version *
 Pin-Priority: -10

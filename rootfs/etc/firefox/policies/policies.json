@@ -1,0 +1,8 @@
+{
+  "policies": {
+    "Preferences": {
+      "browser.tabs.inTitlebar": { "Value": 0, "Status": "default" },
+      "widget.gtk.overlay-scrollbars.enabled": { "Value": true, "Status": "default" }
+    }
+  }
+}

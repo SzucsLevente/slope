@@ -1,0 +1,27 @@
+/* Slope for GTK 4 and libadwaita apps.
+ *
+ * Every window gets the Slope frame with the glossy traffic lights from the
+ * window manager, even GTK 4 / GNOME apps that normally draw their own title
+ * bar.  Their header bar then simply works as a toolbar under that frame, so
+ * it loses the rounded corners, the shadow and its own window buttons.
+ *
+ * Installed as ~/.config/gtk-4.0/gtk.css too, because libadwaita apps only
+ * read that file (they ignore the GTK theme setting).
+ */
+window, window.csd, window.solid-csd, window.background.csd {
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  margin: 0;
+}
+window.csd > .titlebar, window > .titlebar, headerbar, .titlebar {
+  border-radius: 0;
+}
+headerbar {
+  background-image: linear-gradient(to bottom, #fdfdfd 0%, #f0f0f0 49%, #e2e2e2 50%, #d8d8d8 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px #ffffff;
+}
+headerbar:backdrop {
+  background-image: linear-gradient(to bottom, #f7f7f7, #ececec);
+}
