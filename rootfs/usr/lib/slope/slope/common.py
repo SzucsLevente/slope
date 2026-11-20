@@ -264,9 +264,20 @@ def reopen_hidden(appinfo):
         return False
 
 
+def _retire_windowless(appinfo):
+    try:
+        from . import keepalive
+        from .xutil import X11
+        x = X11()
+        keepalive.retire_windowless(appinfo, {x.pid(c) for c in x.clients()})
+    except Exception as e:
+        print("slope: retire failed:", e)
+
+
 def launch(appinfo, uris=None):
     if not uris and reopen_hidden(appinfo):
         return True
+    _retire_windowless(appinfo)
     ctx = Gdk.Display.get_default().get_app_launch_context()
     try:
         if uris:
@@ -282,6 +293,25 @@ def launch(appinfo, uris=None):
 # --------------------------------------------------------------------------
 # Session actions
 # --------------------------------------------------------------------------
+
+def open_app(desktop_id, target=None):
+    """Start an app through its .desktop file (so it behaves as an app: it
+    keeps running when its windows are closed), optionally opening a folder,
+    file or URI.  Falls back to running the command directly."""
+    try:
+        info = Gio.DesktopAppInfo.new(desktop_id)
+    except TypeError:
+        info = None
+    uris = None
+    if target:
+        uris = [target if "://" in target else Gio.File.new_for_path(target).get_uri()]
+    if info is not None and launch(info, uris):
+        return True
+    cmd = {"thunar.desktop": "thunar", "xfce4-terminal.desktop": "xfce4-terminal",
+           "pavucontrol.desktop": "pavucontrol"}.get(desktop_id, desktop_id[:-8])
+    spawn([cmd] + ([target] if target else []))
+    return False
+
 
 def logout():
     spawn(["openbox", "--exit"])

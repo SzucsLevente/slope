@@ -1,9 +1,11 @@
 """slope-ctl: window actions bound to titlebar buttons and keyboard shortcuts.
 
-  close-window   red button / Super+W / Alt+F4.  Closes the window, but if it is
-                 the app's last window the window is only hidden: the app keeps
-                 running in the dock, exactly like on macOS.
-  quit-app       Super+Q: closes every window of the focused app (really quits).
+  close-window   red button / Super+W / Alt+F4.  Closes the window; the app keeps
+                 running in the dock, like on macOS.  Apps that can live without
+                 windows (GTK apps, through libslope-keepalive) really close the
+                 window and open a fresh one next time.  For other apps the
+                 last window is hidden instead.
+  quit-app       Super+Q: really quits the focused app.
   hide-app       Super+H: hides all windows of the focused app.
   hide-others    Super+Alt+H
   minimize       Super+M
@@ -44,8 +46,16 @@ def main(argv=None):
         return 0
     res_name, res_class = x.wm_class(act)
 
+    from . import keepalive
     if cmd == "close-window":
-        if not _setting("close_hides_app", True) or res_name in QUIT_ON_CLOSE \
+        pid = x.pid(act)
+        if keepalive.is_kept(pid):
+            # the app runs on without windows: just close this one for real
+            if not _setting("close_hides_app", True) and x.is_normal(act) and not [
+                    w for w in x.app_windows(act) if w != act and x.is_normal(w)]:
+                keepalive.request_quit(pid)
+            x.close(act)
+        elif not _setting("close_hides_app", True) or res_name in QUIT_ON_CLOSE \
                 or res_class.lower() in QUIT_ON_CLOSE or not x.is_normal(act):
             x.close(act)
         else:
@@ -57,7 +67,11 @@ def main(argv=None):
             else:
                 x.hide(act)       # last window: hide it, the app stays alive
     elif cmd == "quit-app":
-        for w in x.app_windows(act):
+        wins = x.app_windows(act)
+        for pid in {x.pid(w) for w in wins}:
+            if keepalive.is_kept(pid):
+                keepalive.request_quit(pid)
+        for w in wins:
             x.close(w)
     elif cmd == "hide-app":
         for w in x.app_windows(act):

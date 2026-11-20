@@ -14,7 +14,7 @@ gi.require_foreign("cairo")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import SHARE, friendly_name, icon_for, launch, spawn  # noqa: E402
+from .common import SHARE, open_app, friendly_name, icon_for, launch, spawn  # noqa: E402
 
 W = 680
 
@@ -311,7 +311,7 @@ class Spotlight(Gtk.Window):
         elif kind == "open":
             spawn(["xdg-open", arg])
         elif kind == "search":
-            spawn(["thunar", GLib.get_home_dir()])
+            open_app("thunar.desktop", GLib.get_home_dir())
         elif kind == "run":
             spawn(["/bin/sh", "-c", arg])
         Gtk.main_quit()

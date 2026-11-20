@@ -517,6 +517,10 @@ def main():
         except GLib.Error:
             pass
     win = WifiWindow()
+    # closing the window keeps the app running (Mac-style); opening it again
+    # shows the window again
+    from . import keepalive
+    keepalive.keep_window(win, "org.slope.Wifi", "/usr/share/applications/slope-wifi.desktop")
     app.connect("activate", lambda *_: win.present())
     Gtk.main()
     return 0

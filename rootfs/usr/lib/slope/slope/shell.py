@@ -13,7 +13,7 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk  # noqa: E402
 
 from . import art  # noqa: E402
 from .apps import Apps  # noqa: E402
-from .common import (SETTINGS_PATH, SHARE, friendly_name, icon_for, load_settings,  # noqa: E402
+from .common import (SETTINGS_PATH, open_app, SHARE, friendly_name, icon_for, load_settings,  # noqa: E402
                      logout, power, spawn)
 
 
@@ -105,8 +105,8 @@ class Desktop(Gtk.Window):
         menu = Gtk.Menu()
         for label, cb in (
             ("New Folder on Desktop", self._new_folder),
-            ("Open Terminal", lambda: spawn(["xfce4-terminal"])),
-            ("Open Files", lambda: spawn(["thunar"])),
+            ("Open Terminal", lambda: open_app("xfce4-terminal.desktop")),
+            ("Open Files", lambda: open_app("thunar.desktop")),
             (None, None),
             ("Change Wallpaper…", lambda: spawn(["slope-settings", "--page", "appearance"])),
             ("Display Settings…", lambda: spawn(["slope-settings", "--page", "displays"])),
@@ -131,7 +131,7 @@ class Desktop(Gtk.Window):
             p = "%s %d" % (base, i)
             i += 1
         os.makedirs(p)
-        spawn(["thunar", d])
+        open_app("thunar.desktop", d)
 
 
 class Shell:
