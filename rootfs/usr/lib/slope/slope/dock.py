@@ -10,7 +10,7 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import icon_for, spawn  # noqa: E402
+from .common import open_app, icon_for, spawn  # noqa: E402
 
 TRASH_DIR = os.path.join(GLib.get_user_data_dir(), "Trash", "files")
 
@@ -59,6 +59,7 @@ class Dock(Gtk.Window):
         self.connect("button-press-event", self._press)
         self.connect("button-release-event", self._release)
         self.connect("realize", lambda *_: self._update_input_shape())
+        Gtk.IconTheme.get_default().connect("changed", lambda *_: (self.icons.clear(), self.queue_draw()))
 
         self.slots = []
         self.icons = {}
@@ -294,7 +295,7 @@ class Dock(Gtk.Window):
             return True
         ts = ev.time
         if sl.kind == "trash":
-            spawn(["thunar", "trash:///"])
+            open_app("thunar.desktop", "trash:///")
         elif sl.kind == "launchpad":
             spawn(["slope-launchpad"])
         elif ev.button == 2 and sl.group.appinfo is not None:
@@ -315,18 +316,17 @@ class Dock(Gtk.Window):
             menu.append(Gtk.SeparatorMenuItem())
             menu.append(self._mi("Dock Settings…", lambda: spawn(["slope-settings", "--page", "dock"])))
         elif sl.kind == "trash":
-            menu.append(self._mi("Open", lambda: spawn(["thunar", "trash:///"])))
+            menu.append(self._mi("Open", lambda: open_app("thunar.desktop", "trash:///")))
             menu.append(Gtk.SeparatorMenuItem())
             menu.append(self._mi("Empty Trash", lambda: spawn(["gio", "trash", "--empty"]), self._trash_full))
         else:
             g = sl.group
-            if g.windows:
-                for w in g.windows:
+            open_windows = [w for w in g.windows if not self.apps.is_hidden(w)]  # closed ones are gone, like on a Mac
+            if open_windows:
+                for w in open_windows:
                     title = w.get_name() or g.name
                     title = title if len(title) < 50 else title[:47] + "…"
-                    if self.apps.is_hidden(w):
-                        title += "  (closed)"
-                    elif w.is_minimized():
+                    if w.is_minimized():
                         title += "  (minimized)"
                     menu.append(self._mi(title, lambda win=w: self.apps.show_window(win, self.apps.now(self.get_window()))))
                 menu.append(Gtk.SeparatorMenuItem())

@@ -7,6 +7,6 @@ Encoding=UTF-8
 [X-GNOME-Metatheme]
 GtkTheme=Slope
 MetacityTheme=Slope
-IconTheme=Papirus
+IconTheme=Slope
 CursorTheme=Adwaita
 ButtonLayout=close,minimize,maximize:

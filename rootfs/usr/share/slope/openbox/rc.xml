@@ -74,10 +74,10 @@
     <keybind key="W-A-Escape"><action name="Execute"><command>slope-settings --force-quit</command></action></keybind>
     <keybind key="C-A-Delete"><action name="Execute"><command>slope-settings --force-quit</command></action></keybind>
     <keybind key="W-S-q"><action name="Execute"><command>slope-settings --logout</command></action></keybind>
-    <keybind key="W-t"><action name="Execute"><command>xfce4-terminal</command></action></keybind>
-    <keybind key="C-A-t"><action name="Execute"><command>xfce4-terminal</command></action></keybind>
-    <keybind key="W-e"><action name="Execute"><command>thunar</command></action></keybind>
-    <keybind key="W-S-h"><action name="Execute"><command>thunar</command></action></keybind>
+    <keybind key="W-t"><action name="Execute"><command>gio launch /usr/share/applications/xfce4-terminal.desktop</command></action></keybind>
+    <keybind key="C-A-t"><action name="Execute"><command>gio launch /usr/share/applications/xfce4-terminal.desktop</command></action></keybind>
+    <keybind key="W-e"><action name="Execute"><command>gio launch /usr/share/applications/thunar.desktop</command></action></keybind>
+    <keybind key="W-S-h"><action name="Execute"><command>gio launch /usr/share/applications/thunar.desktop</command></action></keybind>
     <keybind key="Print"><action name="Execute"><command>slope-settings --screenshot</command></action></keybind>
     <keybind key="W-S-3"><action name="Execute"><command>slope-settings --screenshot</command></action></keybind>
 
@@ -129,7 +129,7 @@
     <context name="Titlebar Top Right Bottom Left TLCorner TRCorner BRCorner BLCorner">
       <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/><action name="Unshade"/></mousebind>
       <mousebind button="Middle" action="Press"><action name="Lower"/><action name="FocusToBottom"/><action name="Unfocus"/></mousebind>
-      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>client-menu</menu></action></mousebind>
+      <mousebind button="Right" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>slope-window-menu</menu></action></mousebind>
     </context>
 
     <context name="Top"><mousebind button="Left" action="Drag"><action name="Resize"><edge>top</edge></action></mousebind></context>
@@ -145,7 +145,7 @@
     </context>
 
     <context name="Icon">
-      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>client-menu</menu></action></mousebind>
+      <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/><action name="ShowMenu"><menu>slope-window-menu</menu></action></mousebind>
     </context>
 
     <!-- the red button: hide the window, keep the app running -->
@@ -187,6 +187,18 @@
   </menu>
 
   <applications>
+    <!-- Every app window gets the Slope frame with the glossy traffic lights,
+         even apps that normally draw their own title bar (GTK headerbars,
+         libadwaita/GNOME apps, Firefox, Chrome, Electron apps...).  This needs
+         Slope's Openbox patch (packages/openbox/slope-force-decor.patch).
+         Rules further down win, so an app can be excluded with
+         <application class="Its-Class"><decor>no</decor></application>. -->
+    <application class="*" type="normal">
+      <decor>yes</decor>
+    </application>
+    <application class="*" type="dialog">
+      <decor>yes</decor>
+    </application>
     <!-- Spotlight should always grab focus and float above -->
     <application name="slope-spotlight">
       <decor>no</decor>

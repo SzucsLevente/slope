@@ -95,10 +95,12 @@ fi
 #     $WORK/debs/local-<hash>:
 #       - Openbox with full-colour PNG title-bar buttons (packages/openbox)
 #       - libconfig 1.7 + picom 12 back-ported for window animations (packages/picom)
+#       - libslope-keepalive.so: Mac-style app lifetime for GTK apps (packages/keepalive)
 # ---------------------------------------------------------------------------
-LOCAL_KEY=$(cat "$HERE"/packages/openbox/*.patch "$HERE"/packages/picom/sources.txt | sha256sum | cut -c1-12)
+LOCAL_KEY=$(cat "$HERE"/packages/openbox/*.patch "$HERE"/packages/picom/sources.txt \
+  "$HERE"/packages/keepalive/*.c | sha256sum | cut -c1-12)
 DEBS="$WORK/debs/local-$LOCAL_KEY"
-if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
+if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so >/dev/null 2>&1; then
   log "Building local packages (Openbox patch, libconfig 1.7, picom 12)"
   [ -f "$BASE" ] || die "missing $BASE"
   umount_chroot "$OBBUILD"
@@ -112,7 +114,7 @@ if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
   rm -f "$OBBUILD/etc/resolv.conf"
   cp -L /etc/resolv.conf "$OBBUILD/etc/resolv.conf" 2>/dev/null || true
   mkdir -p "$OBBUILD/build"
-  cp "$HERE"/packages/openbox/*.patch "$OBBUILD/build/"
+  cp "$HERE"/packages/openbox/*.patch "$HERE"/packages/keepalive/*.c "$OBBUILD/build/"
   # source packages from the Ubuntu archive pool
   grep -v '^\s*#' "$HERE/packages/picom/sources.txt" | grep -v '^\s*$' | while read -r dir files; do
     for f in $files; do
@@ -135,7 +137,10 @@ if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb >/dev/null 2>&1; then
     cd picom-*/ && apt-get -y build-dep --no-install-recommends ./ &&
     sed -i "1s/(\([^)]*\))/(\1~slope24.04)/" debian/changelog &&
     DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us -d'
+  in_root "$OBBUILD" /bin/sh -ec 'cd /build &&
+    gcc -shared -fPIC -O2 -Wall -Wl,-z,relro,-z,now -o libslope-keepalive.so slope-keepalive.c -ldl'
   mkdir -p "$DEBS"
+  cp "$OBBUILD"/build/libslope-keepalive.so "$DEBS/"
   cp "$OBBUILD"/build/openbox_*_amd64.deb "$OBBUILD"/build/libobrender32v5_*.deb \
      "$OBBUILD"/build/libobt2v5_*.deb "$OBBUILD"/build/libconfig11_*.deb \
      "$OBBUILD"/build/picom_*_amd64.deb "$DEBS/"
@@ -176,6 +181,7 @@ log "Installing locally built packages (Openbox, picom 12)"
 mkdir -p "$CHROOT/var/cache/slope-debs"
 cp "$DEBS"/*.deb "$CHROOT/var/cache/slope-debs/"
 in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb && apt-mark hold openbox libobrender32v5 libobt2v5 picom'
+install -D -m 644 "$DEBS/libslope-keepalive.so" "$CHROOT/usr/lib/slope/libslope-keepalive.so"
 rm -rf "$CHROOT/var/cache/slope-debs"
 
 # ---------------------------------------------------------------------------
@@ -193,6 +199,19 @@ BUILD_DATE="$(date -u +%Y-%m-%d)"
 EOF
 cp "$HERE/config/chroot-setup.sh" "$CHROOT/tmp/chroot-setup.sh"
 in_chroot /bin/bash /tmp/chroot-setup.sh
+
+# Firefox/Thunderbird as real .debs from Mozilla (Ubuntu's are snap wrappers).
+# Pinned in rootfs/etc/apt/preferences.d/mozilla-firefox.pref.
+mkdir -p "$CHROOT/etc/apt/keyrings"
+if curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
+     -o "$CHROOT/etc/apt/keyrings/packages.mozilla.org.asc"; then
+  printf 'Types: deb\nURIs: https://packages.mozilla.org/apt\nSuites: mozilla\nComponents: main\nSigned-By: /etc/apt/keyrings/packages.mozilla.org.asc\n' \
+    > "$CHROOT/etc/apt/sources.list.d/mozilla.sources"
+else
+  echo "warning: could not download Mozilla's signing key; the image will not have the Firefox .deb repository" >&2
+  rm -f "$CHROOT/etc/apt/keyrings/packages.mozilla.org.asc" "$CHROOT/etc/apt/sources.list.d/mozilla.sources"
+fi
+
 
 # ---------------------------------------------------------------------------
 # 4. clean up the image

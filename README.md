@@ -30,8 +30,14 @@ machine.
   menus (Keep in Dock, Quit, the app's window list…).
 - **Glossy Mac-style windows**: shiny red / yellow / green gel buttons on the
   left (with ×, − and + on hover, graphite glass when the window is in the
-  background), soft shadows and rounded corners. Slope ships a small patch to
+  background), soft shadows and rounded corners. Slope ships small patches to
   Openbox (`packages/openbox/`) so title-bar buttons can be full-colour PNGs.
+- **Every app gets the Slope window frame**, including apps that normally draw
+  their own title bar: GNOME / libadwaita and other GTK 4 apps, GTK 3 apps
+  with header bars, Firefox, Thunderbird, Chrome and Electron apps (VS Code,
+  Discord…). Their own title bar becomes a toolbar under the Slope frame, and
+  their own window buttons are switched off, so there's one set of traffic
+  lights everywhere.
 - **Launchpad**: the first icon in the Dock (also F4 or ⌘A). It's a full-screen
   frosted grid of every installed app. Type to search, click to open, or
   right-click → **Keep in Dock**.
@@ -40,12 +46,17 @@ machine.
   installer (Calamares) partitions the disk (erase, alongside another OS, or
   manual), creates your user and installs the GRUB boot loader for BIOS or
   UEFI.
-- **Closing a window does not quit the app**, just like on a Mac. The red ✕
-  closes the window, but if it was the app's last window the app keeps running:
-  it stays in the Dock with its glowing dot and its menu stays in the top bar.
-  Click the Dock icon to bring the window back. To really quit, use
-  **Quit** in the app menu, **⌘Q** (Super+Q), or right-click the Dock icon →
-  **Quit**.
+- **Closing a window never quits the app**, just like on a Mac. The red ✕
+  (also ⌘W, Alt+F4 and Close Window in the title-bar right-click menu) really
+  closes the window: you're asked to save changes, and the window is gone, not
+  minimized. But the app keeps running with no windows: it stays in the Dock
+  with its glowing dot. Click the Dock icon, or open the app from Launchpad or
+  Spotlight, and you get a **fresh new window**. To really quit, use **Quit**
+  in the app menu, **⌘Q** (Super+Q), or right-click the Dock icon → **Quit**.
+  This works for GTK apps (all the bundled apps, GNOME apps, Xfce apps), opened
+  from the Dock, Launchpad, Spotlight, the file manager or Slope's shortcuts.
+  Apps that can't run without a window (Firefox, Chrome, Qt and Electron apps)
+  get their last window hidden instead, and it comes back as it was.
 - **Crazy glassy shiny widgets**: Aqua-style gel buttons, a pulsing blue
   default button, gel scrollbars, candy progress bars with moving stripes,
   glossy sliders and switches, frosted translucent menus.
@@ -63,8 +74,22 @@ machine.
   picom 12 for this (`packages/picom/`).
 - **Top-bar popovers** for Sound (volume slider, mute, output device) and the
   Clock (calendar).
-- **Every app gets an icon**: apps or windows that ship none get a glossy
-  generated one with their initials.
+- **Slope icon theme**: every app icon sits on the same glossy porcelain tile.
+  When you install something with `apt`, a hook (`/etc/apt/apt.conf.d/99slope-icons`)
+  makes its tile straight away. Popular apps (Firefox, VS Code, Steam, Discord,
+  VLC, GIMP…) are pre-made. Apps or windows with no icon at all get a glossy
+  one with their initials. Run `sudo slope-icons --rebuild` to regenerate.
+- **New apps show up by themselves**: you get a notification when an app is
+  installed, and Launchpad marks it with a blue dot until you open it.
+- **Completely snap-free**: snap apps ignore the desktop theme, so Slope has
+  no snapd, no `/snap`, no `/snap/bin` in the PATH, and apt can never install
+  snapd or any of Ubuntu's "transitional" packages that secretly install a
+  snap (`firefox`, `thunderbird`, `chromium-browser`, `lxd`…), not even as a
+  dependency (`/etc/apt/preferences.d/no-snap.pref`). The build fails if a
+  snap package sneaks in. `sudo apt install firefox` (or `thunderbird`)
+  gives the real .deb from Mozilla's own repository. Ubuntu has no
+  Chromium .deb, so for a Chromium-based browser use Google Chrome's,
+  Brave's or Vivaldi's .deb from their websites.
 - **Spotlight** (Super+Space): search apps, files and settings, and do quick
   maths (`12*7+3`).
 - **System Settings**: wallpapers, Dock size, magnification and style, display
@@ -188,27 +213,54 @@ rootfs/                   files copied into the image
   usr/share/themes/Slope/ GTK 3 theme (gtk.css) + Openbox theme (traffic lights)
   usr/share/slope/        Openbox config, picom config, xsettings, shell CSS
 rootfs/etc/calamares/     installer configuration and branding
-packages/openbox/         patch: full-colour PNG title-bar buttons for Openbox
+packages/openbox/         patches: full-colour PNG title-bar buttons, and a frame
+                          on every app even if it asks for none
+packages/keepalive/       libslope-keepalive.so: GTK apps keep running with no windows
 tools/gen-xbm.py          regenerates the fallback (single-colour) button bitmaps
 tools/run-qemu.sh         boots the ISO in QEMU
 ```
 
 ### How "close keeps the app running" works
 
-The Openbox config binds the red button (and ⌘W / Alt+F4) to
-`slope-ctl close-window` instead of a plain close. `slope-ctl` checks whether
-the window is the app's last normal window. If other windows are left, it
-closes this one normally. If it's the last one, it marks the window
-`_SLOPE_HIDDEN`, drops it from the task list and iconifies it, so the process
-keeps running. The Dock sees the app is still running and shows its glowing
-dot, and clicking the icon restores the hidden window. **Quit** sends a real
-close request to every window of the app. You can turn this off under
+Most Linux apps quit as soon as their last window is gone. Slope preloads a
+small library into the session, `libslope-keepalive.so`
+(`packages/keepalive/`), that changes this for GTK apps opened as apps (from
+a .desktop file):
+
+- **GtkApplication apps** (GNOME, most Xfce and GTK 4 apps) are *held* once
+  they start, so they keep running with zero windows. Opening the app again
+  goes, through GLib, to the running copy, which opens a new window.
+- **Older GTK apps that run `gtk_main()`** (xfce4-terminal, galculator…) quit
+  with `gtk_main_quit()` when their last window closes; that call is ignored
+  while no window is open.
+- Apps that allow several copies of themselves (GNOME Calculator, galculator,
+  Task Manager…) are marked `unique=0`. Opening one again starts a fresh copy,
+  and the old windowless copy is asked to quit first.
+
+Each such app announces itself in `$XDG_RUNTIME_DIR/slope-apps/<pid>`. The
+Dock reads that to show apps without windows as running. The Openbox config
+binds the red button (and ⌘W / Alt+F4) to `slope-ctl close-window`. For these
+apps it really closes the window; **Quit** writes `<pid>.quit` and closes the
+windows, and the app exits once none are left.
+
+Apps the library can't keep alive (not GTK, or started from a terminal or a
+script) get the fallback: their last window is marked `_SLOPE_HIDDEN`, dropped
+from the task list and iconified, so the process keeps running and the Dock
+icon brings the same window back. GTK tools run from scripts (zenity…) are
+never held, so scripts don't hang. Set `SLOPE_NO_KEEPALIVE=1` to switch the
+library off for one app. You can turn the whole behaviour off under
 System Settings → Dock & Windows.
 
 ## Limitations
 
-- Apps that draw their own title bars (GTK headerbar / libadwaita apps) quit
-  when their own close button is clicked, because the window manager never
-  sees that click. The bundled apps all use normal title bars.
+- Firefox, Chrome, Qt and Electron apps can't run without a window, so for them
+  closing the last window only hides it (it comes back as it was). An app can
+  also still quit itself from its own menus (File → Quit).
+- Electron apps with their own custom title bar (VS Code, Discord…) still show
+  their own buttons inside the Slope frame. In VS Code you can set
+  `"window.titleBarStyle": "native"` to remove them. To leave a particular app
+  without the Slope frame, add
+  `<application class="Its-Class"><decor>no</decor></application>` at the end of
+  the `<applications>` section in `/usr/share/slope/openbox/rc.xml`.
 - Frosted-glass blur needs a real GPU. In virtual machines with software
   rendering, Slope falls back to plain translucency.

@@ -105,9 +105,24 @@ class X11:
         self.set_state(xid, hidden, "_NET_WM_STATE_SKIP_TASKBAR")
 
     def hide(self, xid):
-        """macOS-style 'close': the window goes away, the app keeps running."""
+        """macOS-style 'close': the window goes away, the app keeps running.
+
+        _SLOPE_CLOSED tells the compositor to animate this like a real close
+        (fade out where it is) and later like a real open, instead of the
+        minimize animation into the Dock.  The shell removes it once the
+        window is back on screen."""
+        self.win(xid).change_property(self.atom("_SLOPE_CLOSED"), self.Xatom.CARDINAL, 32, [1])
         self.mark_hidden(xid, True)
         self.iconify(xid)
+
+    def is_closed(self, xid):
+        return bool(self.prop(xid, "_SLOPE_CLOSED"))
+
+    def clear_closed(self, xid):
+        try:
+            self.win(xid).delete_property(self.atom("_SLOPE_CLOSED"))
+        except Exception:
+            pass
 
     def unhide(self, xid):
         self.mark_hidden(xid, False)

@@ -81,8 +81,31 @@ rename_app pavucontrol.desktop "Sound"
 rename_app org.pulseaudio.pavucontrol.desktop "Sound"
 update-desktop-database -q /usr/share/applications || true
 
+echo "--- glossy Slope icon theme"
+# every installed app (and popular ones people add later) on a glossy tile;
+# an apt hook (/etc/apt/apt.conf.d/99slope-icons) does the same after installs
+PYTHONPATH=/usr/lib/slope python3 -m slope.icons --update --popular
+
+echo "--- no snaps, anywhere"
+# snapd and the snap-only "transitional" debs are blocked by
+# /etc/apt/preferences.d/no-snap.pref; make sure nothing of them is left
+apt-get -y purge snapd snap-confine ubuntu-core-launcher lxd-installer \
+  chromium-browser firefox thunderbird gnome-software-plugin-snap 2>/dev/null || true
+rm -rf /snap /var/snap /var/lib/snapd /var/cache/snapd /usr/lib/snapd \
+  /etc/profile.d/apps-bin-path.sh /usr/share/applications/snap* 2>/dev/null || true
+# Ubuntu puts /snap/bin on every PATH: take it out
+sed -i 's#:/snap/bin##g' /etc/environment /etc/sudoers 2>/dev/null || true
+# and fail the build if any snap package still sneaked in
+if dpkg-query -W -f '${Package} ${Status}\n' 'snapd' 'lxd-installer' 'chromium-browser' 2>/dev/null | grep -q 'ok installed'; then
+  echo "error: a snap package is installed in the image" >&2; exit 1
+fi
+
 echo "--- desktop defaults for every new user"
 mkdir -p /etc/skel/.config/slope /etc/skel/Desktop
+# GTK 4 / libadwaita apps only read ~/.config/gtk-4.0/gtk.css: it keeps their
+# own title bar flat under the Slope window frame
+mkdir -p /etc/skel/.config/gtk-4.0
+ln -sf /usr/share/themes/Slope/gtk-4.0/gtk.css /etc/skel/.config/gtk-4.0/gtk.css
 # Terminal: a clean light profile that suits the theme
 mkdir -p /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml
 cat > /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-terminal.xml <<'EOF'
@@ -122,7 +145,7 @@ EOF
 # GTK 2 apps
 cat > /etc/skel/.gtkrc-2.0 <<'EOF'
 gtk-theme-name="Adwaita"
-gtk-icon-theme-name="Papirus"
+gtk-icon-theme-name="Slope"
 gtk-font-name="Inter 10"
 EOF
 

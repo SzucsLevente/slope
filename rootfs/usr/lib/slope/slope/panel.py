@@ -7,7 +7,7 @@ import cairo
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 
 from . import art
-from .common import have, logout, power, run_quiet, spawn, update_setting
+from .common import open_app, have, logout, power, run_quiet, spawn, update_setting
 from .iwd import Agent, Iwd, ethernet_status, signal_bars
 from . import popover
 from .popover import Popover
@@ -405,7 +405,7 @@ class Panel(Gtk.Window):
         home = GLib.get_home_dir()
 
         def go(path):
-            return lambda: spawn(["thunar", path])
+            return lambda: open_app("thunar.desktop", path)
 
         def xdg(kind, fallback):
             p = GLib.get_user_special_dir(kind)
@@ -413,7 +413,7 @@ class Panel(Gtk.Window):
 
         file_m = submenu_item("File", [
             cmd_item("New Window", "⌘N", cb=go(home)),
-            cmd_item("New Terminal", "⌘T", cb=lambda: spawn(["xfce4-terminal"])),
+            cmd_item("New Terminal", "⌘T", cb=lambda: open_app("xfce4-terminal.desktop")),
             sep(),
             cmd_item("Find…", "⌘Space", cb=lambda: spawn(["slope-spotlight"])),
         ])
@@ -623,7 +623,7 @@ class Panel(Gtk.Window):
         self.sink_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         c.pack_start(self.sink_box, False, False, 0)
         c.pack_start(Gtk.Separator(), False, False, 0)
-        c.pack_start(popover.link_button("Sound Settings…", lambda: (pop.dismiss(), spawn(["pavucontrol"]))),
+        c.pack_start(popover.link_button("Sound Settings…", lambda: (pop.dismiss(), open_app("pavucontrol.desktop"))),
                      False, False, 0)
         pop.on_show = self._refresh_volume
 

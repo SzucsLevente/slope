@@ -1,0 +1,2 @@
+// Slope: give every newly installed app a glossy icon that matches the desktop
+DPkg::Post-Invoke { "if [ -x /usr/bin/slope-icons ]; then /usr/bin/slope-icons --update >/dev/null 2>&1 || true; fi"; };

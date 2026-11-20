@@ -192,6 +192,7 @@ class Launchpad(Gtk.Window):
 
     # -- content -----------------------------------------------------------
     def _populate(self):
+        self.new_apps = list(load_settings().get("new_apps", []))
         apps = []
         for a in Gio.AppInfo.get_all():
             if not isinstance(a, Gio.DesktopAppInfo) or not a.should_show():
@@ -210,7 +211,12 @@ class Launchpad(Gtk.Window):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
             img = Gtk.Image.new_from_pixbuf(icon_for(a, ICON))
             box.pack_start(img, False, False, 0)
-            lbl = Gtk.Label(label=friendly_name(a))
+            lbl = Gtk.Label()
+            if a.get_id() in self.new_apps:
+                # newly installed: a blue dot until it is opened, like on a Mac
+                lbl.set_markup("<span foreground='#59b4ff'>●</span> " + GLib.markup_escape_text(friendly_name(a)))
+            else:
+                lbl.set_text(friendly_name(a))
             lbl.set_ellipsize(Pango.EllipsizeMode.END)
             lbl.set_max_width_chars(14)
             lbl.set_justify(Gtk.Justification.CENTER)
@@ -238,6 +244,8 @@ class Launchpad(Gtk.Window):
 
     def _open(self, appinfo):
         launch(appinfo)
+        if appinfo.get_id() in self.new_apps:
+            update_setting("new_apps", [i for i in self.new_apps if i != appinfo.get_id()])
         self.close_launchpad()
 
     # -- events ------------------------------------------------------------

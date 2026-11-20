@@ -232,7 +232,52 @@ def icon_for(appinfo, size, fallback="application-x-executable", name=None):
         return None
 
 
+def _app_keys(appinfo):
+    keys = set()
+    for v in (appinfo.get_startup_wm_class(), (appinfo.get_id() or "")[:-len(".desktop")],
+              os.path.basename((appinfo.get_executable() or ""))):
+        if v:
+            keys.add(v.lower())
+            keys.add(v.lower().rsplit(".", 1)[-1])
+    keys.discard("")
+    return keys
+
+
+def reopen_hidden(appinfo):
+    """Opening an app whose windows were all closed (it kept running) brings
+    those windows back instead of starting it a second time, like on a Mac."""
+    try:
+        from .xutil import X11
+        x = X11()
+        keys = _app_keys(appinfo)
+        targets = []
+        for xid in x.clients():
+            if x.is_hidden(xid) and {s.lower() for s in x.wm_class(xid) if s} & keys:
+                targets.append(xid)
+        for xid in targets:
+            x.unhide(xid)
+            x.activate(xid)
+        x.flush()
+        return bool(targets)
+    except Exception as e:      # never block a launch
+        print("slope: reopen failed:", e)
+        return False
+
+
+def _retire_windowless(appinfo):
+    try:
+        from . import keepalive
+        from .xutil import X11
+        x = X11()
+        keepalive.retire_windowless(appinfo, {x.pid(c) for c in x.clients()})
+    except Exception as e:
+        print("slope: retire failed:", e)
+
+
 def launch(appinfo, uris=None):
+    if not uris and reopen_hidden(appinfo):
+        return True
+    _retire_windowless(appinfo)
     ctx = Gdk.Display.get_default().get_app_launch_context()
     try:
         if uris:
@@ -248,6 +293,25 @@ def launch(appinfo, uris=None):
 # --------------------------------------------------------------------------
 # Session actions
 # --------------------------------------------------------------------------
+
+def open_app(desktop_id, target=None):
+    """Start an app through its .desktop file (so it behaves as an app: it
+    keeps running when its windows are closed), optionally opening a folder,
+    file or URI.  Falls back to running the command directly."""
+    try:
+        info = Gio.DesktopAppInfo.new(desktop_id)
+    except TypeError:
+        info = None
+    uris = None
+    if target:
+        uris = [target if "://" in target else Gio.File.new_for_path(target).get_uri()]
+    if info is not None and launch(info, uris):
+        return True
+    cmd = {"thunar.desktop": "thunar", "xfce4-terminal.desktop": "xfce4-terminal",
+           "pavucontrol.desktop": "pavucontrol"}.get(desktop_id, desktop_id[:-8])
+    spawn([cmd] + ([target] if target else []))
+    return False
+
 
 def logout():
     spawn(["openbox", "--exit"])

@@ -13,7 +13,8 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk  # noqa: E402
 
 from . import art  # noqa: E402
 from .apps import Apps  # noqa: E402
-from .common import SETTINGS_PATH, SHARE, icon_for, load_settings, logout, power, spawn  # noqa: E402
+from .common import (SETTINGS_PATH, open_app, SHARE, friendly_name, icon_for, load_settings,  # noqa: E402
+                     logout, power, spawn)
 
 
 class Desktop(Gtk.Window):
@@ -104,8 +105,8 @@ class Desktop(Gtk.Window):
         menu = Gtk.Menu()
         for label, cb in (
             ("New Folder on Desktop", self._new_folder),
-            ("Open Terminal", lambda: spawn(["xfce4-terminal"])),
-            ("Open Files", lambda: spawn(["thunar"])),
+            ("Open Terminal", lambda: open_app("xfce4-terminal.desktop")),
+            ("Open Files", lambda: open_app("thunar.desktop")),
             (None, None),
             ("Change Wallpaper…", lambda: spawn(["slope-settings", "--page", "appearance"])),
             ("Display Settings…", lambda: spawn(["slope-settings", "--page", "displays"])),
@@ -130,7 +131,7 @@ class Desktop(Gtk.Window):
             p = "%s %d" % (base, i)
             i += 1
         os.makedirs(p)
-        spawn(["thunar", d])
+        open_app("thunar.desktop", d)
 
 
 class Shell:
@@ -153,6 +154,11 @@ class Shell:
         os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
         self._mon = Gio.File.new_for_path(SETTINGS_PATH).monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, None)
         self._mon.connect("changed", self._settings_changed)
+
+        # new apps: notify, give them glossy icons, mark them in Launchpad
+        self._apps_check = None
+        Gio.AppInfoMonitor.get().connect("changed", lambda *_: self._queue_app_check())
+        GLib.timeout_add_seconds(8, self._check_new_apps)
 
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, Gtk.main_quit)
@@ -185,6 +191,53 @@ class Shell:
             self.desktop.reload()
         self.dock.configure()
         self.panel._tick()
+
+    # -- newly installed apps --------------------------------------------
+    def _queue_app_check(self):
+        if self._apps_check is None:
+            self._apps_check = GLib.timeout_add_seconds(3, self._check_new_apps)
+
+    def _check_new_apps(self):
+        self._apps_check = None
+        import json
+        path = os.path.join(os.path.dirname(SETTINGS_PATH), "known-apps.json")
+        apps = {a.get_id(): a for a in Gio.AppInfo.get_all()
+                if isinstance(a, Gio.DesktopAppInfo) and a.should_show()}
+        try:
+            with open(path) as f:
+                known = set(json.load(f))
+        except (OSError, ValueError):
+            known = None
+        new = [] if known is None else sorted(set(apps) - known)
+        try:
+            with open(path + ".tmp", "w") as f:
+                json.dump(sorted(apps), f)
+            os.replace(path + ".tmp", path)
+        except OSError:
+            pass
+        current = [i for i in self.settings.get("new_apps", []) if i in apps]
+        for app_id in new:
+            info = apps[app_id]
+            if app_id not in current:
+                current.append(app_id)
+            icon = info.get_icon()
+            spawn(["notify-send", "-a", "Slope", "-i", icon.to_string() if icon else "system-software-install",
+                   "%s was installed" % friendly_name(info), "You can find it in Launchpad."])
+        if current != self.settings.get("new_apps", []):
+            from .common import update_setting
+            update_setting("new_apps", current)
+        if new:
+            # icons for apps installed in the home folder (system ones: apt hook)
+            spawn(["slope-icons", "--user", "--update"])
+            for delay in (2, 20):     # the apt hook may still be drawing icons
+                GLib.timeout_add_seconds(delay, self._refresh_icons)
+        return False
+
+    def _refresh_icons(self):
+        Gtk.IconTheme.get_default().rescan_if_needed()
+        self.dock.icons.clear()
+        self.dock.queue_draw()
+        return False
 
     # -- helpers used by the panel and dock ----------------------------------
     def monitor_geometry(self):

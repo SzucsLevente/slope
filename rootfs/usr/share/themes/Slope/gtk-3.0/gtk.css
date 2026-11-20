@@ -252,6 +252,21 @@ entry:focus, spinbutton:focus:not(.vertical) {
   box-shadow: none;
   margin: 0;
 }
+
+/* Every app window gets the Slope frame from the window manager, even apps
+   that draw their own title bar (headerbar).  Keep those flat inside the
+   frame: no rounded corners, no second shadow, no second set of buttons. */
+window.csd:not(.popup) decoration, window.solid-csd decoration {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  margin: 0;
+}
+window.csd:not(.popup) > .titlebar, window.csd:not(.popup) headerbar.titlebar,
+window.solid-csd > .titlebar {
+  border-radius: 0;
+}
+headerbar.titlebar separator.titlebutton { opacity: 0; min-width: 0; margin: 0; }
 menu, .menu, .context-menu {
   margin: 0;
   padding: 5px;

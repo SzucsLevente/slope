@@ -9,6 +9,12 @@ export GTK_MODULES="${GTK_MODULES:+$GTK_MODULES:}appmenu-gtk-module"
 export UBUNTU_MENUPROXY=1
 # Qt apps follow the GTK theme and also use the global menu
 export QT_QPA_PLATFORMTHEME=gtk3
+# Mac-style app lifetime: GTK apps keep running when their last window is
+# closed, and open a fresh window when opened again (packages/keepalive)
+KEEPALIVE=/usr/lib/slope/libslope-keepalive.so
+if [ -f "$KEEPALIVE" ]; then
+  export LD_PRELOAD="$KEEPALIVE${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
 
 mkdir -p "$HOME/.config/slope"
 xdg-user-dirs-update >/dev/null 2>&1 || true
@@ -21,6 +27,7 @@ xsetroot -cursor_name left_ptr 2>/dev/null || true
 setxkbmap -option compose:ralt 2>/dev/null || true
 
 dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP \
-    XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_MODULES UBUNTU_MENUPROXY QT_QPA_PLATFORMTHEME 2>/dev/null || true
+    XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_MODULES UBUNTU_MENUPROXY QT_QPA_PLATFORMTHEME \
+    LD_PRELOAD 2>/dev/null || true
 
 exec openbox --config-file /usr/share/slope/openbox/rc.xml --startup /usr/lib/slope/slope-startup

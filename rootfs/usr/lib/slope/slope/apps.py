@@ -3,8 +3,9 @@ import gi
 
 gi.require_version("Wnck", "3.0")
 gi.require_version("GdkX11", "3.0")
-from gi.repository import GdkX11, GLib, GObject, Wnck  # noqa: E402
+from gi.repository import GdkX11, Gio, GLib, GObject, Wnck  # noqa: E402
 
+from . import keepalive  # noqa: E402
 from .xutil import X11  # noqa: E402
 from .common import SHELL_CLASS, AppIndex, desktop_key, friendly_name, launch  # noqa: E402
 
@@ -28,6 +29,7 @@ class AppGroup:
         self.appinfo = appinfo
         self.pinned = pinned
         self.windows = []
+        self.kept_pids = set()     # processes that run on with no windows
         self._name = name
 
     @property
@@ -38,7 +40,7 @@ class AppGroup:
 
     @property
     def running(self):
-        return bool(self.windows)
+        return bool(self.windows) or bool(self.kept_pids)
 
 
 class Apps(GObject.Object):
@@ -68,11 +70,54 @@ class Apps(GObject.Object):
         self.screen.connect("active-window-changed", self._on_active)
         for w in self.screen.get_windows():
             self._watch(w)
+        # apps that keep running with no windows (keepalive.py)
+        self._kept = frozenset()
+        self._seen = []
+        self._kept_info = {}
+        try:
+            os_dir = Gio.File.new_for_path(keepalive.DIR)
+            os_dir.make_directory_with_parents(None)
+        except GLib.Error:
+            pass
+        try:
+            self._kept_mon = Gio.File.new_for_path(keepalive.DIR).monitor_directory(
+                Gio.FileMonitorFlags.NONE, None)
+            self._kept_mon.connect("changed", lambda *_: self._check_kept())
+        except GLib.Error:
+            self._kept_mon = None
+        GLib.timeout_add_seconds(3, self._check_kept)    # also catches crashed apps
+        self._check_kept()
 
     # -- window bookkeeping ------------------------------------------------
     def _watch(self, w):
-        w.connect("state-changed", lambda *_: self._queue())
+        w.connect("state-changed", self._on_state)
         w.connect("class-changed", lambda *_: self._forget(w))
+
+    def _on_state(self, w, changed, new):
+        # A "closed" (hidden) window that comes back by any other route than
+        # the Dock -- the app opening it again itself, a second launch of a
+        # single-instance app, Alt+Tab... -- is a normal window again.
+        if changed & Wnck.WindowState.MINIMIZED and not new & Wnck.WindowState.MINIMIZED:
+            xid = w.get_xid()
+            try:
+                if self.is_hidden(w):
+                    self.x.unhide(xid)
+                    self.x.flush()
+                if self.x.is_closed(xid):
+                    # it has just reopened with the "open" animation; from now
+                    # on the yellow button minimizes it into the Dock again
+                    GLib.timeout_add(900, self._clear_closed, xid)
+            except Exception:
+                pass
+        self._queue()
+
+    def _clear_closed(self, xid):
+        try:
+            self.x.clear_closed(xid)
+            self.x.flush()
+        except Exception:
+            pass
+        return False
 
     def _forget(self, w):
         self._keycache.pop(w.get_xid(), None)
@@ -90,6 +135,32 @@ class Apps(GObject.Object):
         _GRAVEYARD.append(w)
         self._keycache.pop(w.get_xid(), None)
         self._queue()
+
+    def _check_kept(self):
+        info = keepalive.apps()
+        if frozenset(info) != self._kept:
+            self._kept = frozenset(info)
+            self._kept_info = info
+            self._queue()
+        return True
+
+    def _kept_appinfo(self, info):
+        d = info.get("desktop")
+        if d:
+            try:
+                a = Gio.DesktopAppInfo.new_from_filename(d)
+                if a is not None:
+                    hit = self.index.get(a.get_id())
+                    if hit is not None:
+                        return hit
+            except TypeError:
+                pass
+        app_id = info.get("id") or ""
+        hit = self.index.get(app_id + ".desktop") if app_id else None
+        if hit is None:
+            exe = (info.get("exe") or "").rsplit("/", 1)[-1]
+            hit = self.index.match(app_id, exe)
+        return hit
 
     def _queue(self):
         if self._queued is None:
@@ -157,7 +228,33 @@ class Apps(GObject.Object):
                 groups[key] = g
                 order.append(g)
             g.windows.append(w)
-        return order
+        # kept-alive apps whose windows are all closed are still running
+        window_pids = {w.get_pid() for g in order for w in g.windows}
+        for pid, info in self._kept_info.items():
+            if pid in window_pids:
+                for g in order:
+                    if any(w.get_pid() == pid for w in g.windows):
+                        g.kept_pids.add(pid)
+                continue
+            appinfo = self._kept_appinfo(info)
+            if appinfo is None or not appinfo.should_show():
+                continue        # background services, not apps
+            key = appinfo.get_id() if appinfo is not None else "kept:" + (info.get("id") or str(pid))
+            g = groups.get(key)
+            if g is None:
+                g = AppGroup(key, appinfo, name=info.get("id"))
+                groups[key] = g
+                order.append(g)
+            g.kept_pids.add(pid)
+            g.kept_info = info
+        # running (unpinned) apps keep their Dock place, in launch order, even
+        # while they have no windows -- icons must not jump around
+        running = [g.key for g in order if not g.pinned]
+        self._seen = [k for k in self._seen if k in running]
+        self._seen += [k for k in running if k not in self._seen]
+        rank = {k: i for i, k in enumerate(self._seen)}
+        pinned = [g for g in order if g.pinned]
+        return pinned + sorted((g for g in order if not g.pinned), key=lambda g: rank[g.key])
 
     def group_for_window(self, w):
         if w is None:
@@ -201,7 +298,9 @@ class Apps(GObject.Object):
     def activate_group(self, g, ts, launch_if_empty=True):
         """Dock click: bring the app forward, un-hiding closed windows."""
         if not g.windows:
-            if launch_if_empty and g.appinfo is not None:
+            if g.kept_pids:
+                self.reopen(g)          # running with no windows: new window
+            elif launch_if_empty and g.appinfo is not None:
                 self.launch(g)
             return
         visible = self.visible_windows(g)
@@ -223,7 +322,27 @@ class Apps(GObject.Object):
             self.x.flush()
         w.activate(ts)
 
+    def reopen(self, g):
+        """Open a new window of an app that runs with no windows (Mac-style).
+        Starting it again does it: GLib hands that over to the running copy."""
+        if g.appinfo is not None and launch(g.appinfo):
+            return True
+        info = getattr(g, "kept_info", {})
+        if info.get("id") and info.get("path"):
+            try:
+                bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+                bus.call(info["id"], info["path"], "org.freedesktop.Application", "Activate",
+                         GLib.Variant("(a{sv})", ({},)), None, Gio.DBusCallFlags.NONE, -1, None, None)
+                return True
+            except GLib.Error:
+                pass
+        return False
+
     def quit_group(self, g):
+        pids = set(g.kept_pids) | {w.get_pid() for w in g.windows}
+        for pid in pids:
+            if keepalive.is_kept(pid):
+                keepalive.request_quit(pid)
         for w in list(g.windows):
             self.x.close(w.get_xid())
         self.x.flush()

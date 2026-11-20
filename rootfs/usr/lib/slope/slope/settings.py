@@ -608,9 +608,16 @@ def main():
             app.run(sys.argv)
             return 0
         win = SettingsWindow(args.page)
+        # like a Mac app: the close button closes the window, Settings keeps
+        # running in the Dock and opens a fresh window when opened again
+        from . import keepalive
+        keepalive.keep_window(win, "org.slope.Settings", "/usr/share/applications/slope-settings.desktop")
+        first_page = win.stack.get_visible_child_name()
 
         def on_cmd(a, cl):
             argv = cl.get_arguments()
+            if not win.get_visible() and first_page:
+                win.stack.set_visible_child_name(first_page)
             if "--page" in argv and argv.index("--page") + 1 < len(argv):
                 child = win.stack.get_child_by_name(argv[argv.index("--page") + 1])
                 if child is not None:
@@ -619,6 +626,8 @@ def main():
             return 0
         app.connect("command-line", on_cmd)
     Gtk.main()
+    from . import keepalive
+    keepalive.unregister()
     os._exit(0)     # (Force Quit uses libwnck, which can crash during teardown)
 
 
