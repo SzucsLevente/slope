@@ -311,7 +311,7 @@ class Spotlight(Gtk.Window):
         elif kind == "open":
             spawn(["xdg-open", arg])
         elif kind == "search":
-            open_app("thunar.desktop", GLib.get_home_dir())
+            open_app("slope-files.desktop", GLib.get_home_dir())
         elif kind == "run":
             spawn(["/bin/sh", "-c", arg])
         Gtk.main_quit()

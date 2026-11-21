@@ -25,7 +25,7 @@ PKG_RE = re.compile(r"^[a-z0-9][a-z0-9+.-]{0,99}(:[a-z0-9]+)?$")
 ENV = dict(os.environ, DEBIAN_FRONTEND="noninteractive", LC_ALL="C.UTF-8",
            PATH="/usr/sbin:/usr/bin:/sbin:/bin")
 APT = ["apt-get", "-y", "-q", "-o", "Dpkg::Options::=--force-confdef",
-       "-o", "Dpkg::Options::=--force-confold", "-o", "APT::Status-Fd=3"]
+       "-o", "Dpkg::Options::=--force-confold"]
 
 
 def say(**msg):
@@ -45,12 +45,32 @@ def core_packages():
     return keep
 
 
-def run_apt(args, weight=(0, 100)):
-    """Run apt-get, turning its status lines into progress messages."""
+def friendly(kind, text):
+    """apt's status text, in plain words."""
+    m = re.match(r"(Unpacking|Installing|Configuring|Removing|Preparing to configure|Preparing) (\S+)", text)
+    if m:
+        verb = {"Unpacking": "Installing", "Preparing": "Preparing", "Preparing to configure":
+                "Setting up", "Configuring": "Setting up", "Installing": "Installing",
+                "Removing": "Removing"}[m.group(1)]
+        return "%s %s" % (verb, m.group(2).split(":")[0])
+    m = re.match(r"Retrieving file (\d+) of (\d+)", text)
+    if m:
+        return "Downloading (%s of %s)" % m.groups()
+    if text.startswith("Running post-installation trigger"):
+        return "Finishing"
+    if text == "Running dpkg":
+        return "Installing"
+    return text
+
+
+def run_apt(args, weight=(0, 100), download_share=1 / 3.0):
+    """Run apt-get, turning its status lines into progress messages.
+    download_share: part of the bar used by downloading (apt-get update: all)."""
     r, w = os.pipe()
-    proc = subprocess.Popen(APT + args, env=ENV, pass_fds=(w,), stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, text=True,
-                            preexec_fn=lambda: os.dup2(w, 3))
+    # apt writes its machine-readable progress to this pipe (the pipe's own
+    # descriptor number: Popen closes every other descriptor in the child)
+    proc = subprocess.Popen(APT + ["-o", "APT::Status-Fd=%d" % w] + args, env=ENV, pass_fds=(w,),
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     os.close(w)
     lo, hi = weight
     with os.fdopen(r) as status:
@@ -69,11 +89,12 @@ def run_apt(args, weight=(0, 100)):
                     pct = float(parts[2])
                 except ValueError:
                     continue
-                if parts[0] == "dlstatus":      # downloading: first third
-                    pct = pct / 3.0
-                else:                           # installing: the rest
-                    pct = 33.3 + pct * 2 / 3.0
-                say(type="progress", percent=round(lo + (hi - lo) * pct / 100.0, 1), text=parts[3])
+                if parts[0] == "dlstatus":      # downloading first...
+                    pct = pct * download_share
+                else:                           # ...then installing
+                    pct = download_share * 100 + pct * (1 - download_share)
+                say(type="progress", percent=round(lo + (hi - lo) * pct / 100.0, 1),
+                    text=friendly(parts[0], parts[3]))
         proc.wait()
         t.join(2)
     if proc.returncode != 0:
@@ -93,9 +114,7 @@ def lists_present():
 
 def refresh(weight=(0, 100)):
     say(type="progress", percent=weight[0], text="Checking for new software")
-    proc = subprocess.run(["apt-get", "-q", "update"], env=ENV, capture_output=True, text=True)
-    if proc.returncode != 0:
-        say(type="error", text=(proc.stdout + proc.stderr).strip()[-800:])
+    if not run_apt(["update"], weight, download_share=1.0):
         return False
     say(type="progress", percent=weight[1], text="Software list updated")
     return True

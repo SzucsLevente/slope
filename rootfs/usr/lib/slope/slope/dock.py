@@ -85,9 +85,14 @@ class Dock(Gtk.Window):
         s = self.shell.settings
         self.S = int(max(24, min(128, s.get("dock_icon_size", 52))))
         self.M = int(max(self.S, min(160, s.get("dock_magnify_size", 88)))) if s.get("dock_magnify", True) else self.S
-        self.style = s.get("dock_style", "shelf")
+        self.pos = s.get("dock_position", "bottom")
+        if self.pos not in ("bottom", "left", "right"):
+            self.pos = "bottom"
+        # the 3D shelf only makes sense along the bottom; side Docks are glass panels
+        self.style = s.get("dock_style", "shelf") if self.pos == "bottom" else "box"
         self.gap = round(self.S * 0.16)
-        self.label_h = 34
+        # room for the name labels: above the icons, or beside them on a side Dock
+        self.label_h = 34 if self.pos == "bottom" else 230
         if self.style == "shelf":
             self.shelf_h = round(self.S * 0.40)
             self.below = round(self.shelf_h * 0.5) + 3          # baseline -> bottom
@@ -130,19 +135,63 @@ class Dock(Gtk.Window):
             w += self.gap * 2 if sl.kind == "sep" else self.S + self.gap
         return w
 
+    # The Dock is laid out in "logical" coordinates, as if it sat at the bottom:
+    # u runs along the Dock (0..W), v goes towards the screen edge (0..H).
+    # For a Dock on the left or right these are turned onto the side.
+    def _dev(self, u, v):
+        """logical (u, v) -> window coordinates"""
+        if self.pos == "left":
+            return self.H - v, u
+        if self.pos == "right":
+            return v, u
+        return u, v
+
+    def _log(self, x, y):
+        """window coordinates -> logical (u, v)"""
+        if self.pos == "left":
+            return y, self.H - x
+        if self.pos == "right":
+            return y, x
+        return x, y
+
+    def _dev_rect(self, u, v, w, h):
+        x0, y0 = self._dev(u, v)
+        x1, y1 = self._dev(u + w, v + h)
+        return min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0)
+
+    def _matrix(self):
+        if self.pos == "left":
+            return cairo.Matrix(0, 1, -1, 0, self.H, 0)
+        if self.pos == "right":
+            return cairo.Matrix(0, 1, 1, 0, 0, 0)
+        return cairo.Matrix()
+
     def place(self):
         geo = self.shell.monitor_geometry()
         self.H = self.label_h + max(self.M, int(self.S * 1.5)) + self.below
-        self.W = min(geo.width, int(self.base_width() + 2 * (self.M - self.S) * 1.9 + self.S * 2 + 40))
+        top_bar = 28
+        room = geo.width if self.pos == "bottom" else geo.height - top_bar - 12
+        self.W = min(room, int(self.base_width() + 2 * (self.M - self.S) * 1.9 + self.S * 2 + 40))
         self.geo = geo
-        x = geo.x + (geo.width - self.W) // 2
-        y = geo.y + geo.height - self.H
-        self.set_size_request(self.W, self.H)
-        self.resize(self.W, self.H)
+        reserve = self.below + self.S + 4
+        if self.pos == "bottom":
+            x = geo.x + (geo.width - self.W) // 2
+            y = geo.y + geo.height - self.H
+            w, h = self.W, self.H
+        else:
+            y = geo.y + top_bar + (geo.height - top_bar - self.W) // 2
+            x = geo.x if self.pos == "left" else geo.x + geo.width - self.H
+            w, h = self.H, self.W
+        self.set_size_request(w, h)
+        self.resize(w, h)
         self.move(x, y)
         self.show()
-        reserve = self.below + self.S + 4
-        self.shell.set_strut(self, bottom=reserve, bottom_start=x, bottom_end=x + self.W - 1)
+        if self.pos == "bottom":
+            self.shell.set_strut(self, bottom=reserve, bottom_start=x, bottom_end=x + self.W - 1)
+        elif self.pos == "left":
+            self.shell.set_strut(self, left=reserve, left_start=y, left_end=y + self.W - 1)
+        else:
+            self.shell.set_strut(self, right=reserve, right_start=y, right_end=y + self.W - 1)
         self._update_input_shape()
 
     # -- layout -------------------------------------------------------------
@@ -184,12 +233,13 @@ class Dock(Gtk.Window):
         if self.get_window() is None:
             return
         if self.hover or self.menu_open:
-            rect = cairo.RectangleInt(0, 0, self.W, self.H)
+            x, y, w, h = self._dev_rect(0, 0, self.W, self.H)
         else:
             content = self.base_width()
-            x0 = int((self.W - content) / 2 - self.S * 0.4)
+            x0 = max(0, int((self.W - content) / 2 - self.S * 0.4))
             top = self.H - self.below - self.S - 2
-            rect = cairo.RectangleInt(max(0, x0), top, int(min(self.W, content + self.S * 0.8)), self.H - top)
+            x, y, w, h = self._dev_rect(x0, top, int(min(self.W, content + self.S * 0.8)), self.H - top)
+        rect = cairo.RectangleInt(int(x), int(y), int(w), int(h))
         self.input_shape_combine_region(cairo.Region(rect))
 
     # -- animation ----------------------------------------------------------
@@ -256,14 +306,15 @@ class Dock(Gtk.Window):
 
     # -- events -------------------------------------------------------------
     def _motion(self, w, ev):
+        u, v = self._log(ev.x, ev.y)
         top_limit = self.H - self.below - (self.M if self.hover else self.S) - 6
         x0 = (self.W - self.base_width()) / 2 - self.S * 0.5
         x1 = self.W - x0
-        inside = ev.y >= top_limit and x0 <= ev.x <= x1
+        inside = v >= top_limit and x0 <= u <= x1
         if inside != self.hover:
             self.hover = inside
             self._update_input_shape()
-        self.mouse_x = ev.x if inside else self.mouse_x
+        self.mouse_x = u if inside else self.mouse_x
         self._kick()
         return True
 
@@ -279,7 +330,7 @@ class Dock(Gtk.Window):
 
     def _press(self, w, ev):
         self.shell.panel.dismiss_popovers()
-        sl = self._slot_at(ev.x)
+        sl = self._slot_at(self._log(ev.x, ev.y)[0])
         self.pressed = sl
         self.queue_draw()
         if sl is not None and ev.button == 3:
@@ -288,14 +339,14 @@ class Dock(Gtk.Window):
         return True
 
     def _release(self, w, ev):
-        sl = self._slot_at(ev.x)
+        sl = self._slot_at(self._log(ev.x, ev.y)[0])
         pressed, self.pressed = self.pressed, None
         self.queue_draw()
         if sl is None or sl is not pressed or ev.button == 3:
             return True
         ts = ev.time
         if sl.kind == "trash":
-            open_app("thunar.desktop", "trash:///")
+            open_app("slope-files.desktop", "trash:///")
         elif sl.kind == "launchpad":
             spawn(["slope-launchpad"])
         elif ev.button == 2 and sl.group.appinfo is not None:
@@ -316,7 +367,7 @@ class Dock(Gtk.Window):
             menu.append(Gtk.SeparatorMenuItem())
             menu.append(self._mi("Dock Settings…", lambda: spawn(["slope-settings", "--page", "dock"])))
         elif sl.kind == "trash":
-            menu.append(self._mi("Open", lambda: open_app("thunar.desktop", "trash:///")))
+            menu.append(self._mi("Open", lambda: open_app("slope-files.desktop", "trash:///")))
             menu.append(Gtk.SeparatorMenuItem())
             menu.append(self._mi("Empty Trash", lambda: spawn(["gio", "trash", "--empty"]), self._trash_full))
         else:
@@ -362,9 +413,13 @@ class Dock(Gtk.Window):
         menu.connect("deactivate", done)
         rect = Gdk.Rectangle()
         top = self.H - self.below - sl.size - 8
-        rect.x, rect.y, rect.width, rect.height = int(sl.x), int(top), int(sl.width), 1
+        rx, ry, rw, rh = self._dev_rect(sl.x, top, sl.width, 1)
+        rect.x, rect.y, rect.width, rect.height = int(rx), int(ry), max(1, int(rw)), max(1, int(rh))
+        anchor, gravity = {"bottom": (Gdk.Gravity.NORTH, Gdk.Gravity.SOUTH),
+                           "left": (Gdk.Gravity.EAST, Gdk.Gravity.WEST),
+                           "right": (Gdk.Gravity.WEST, Gdk.Gravity.EAST)}[self.pos]
         menu.attach_to_widget(self, None)
-        menu.popup_at_rect(self.get_window(), rect, Gdk.Gravity.NORTH, Gdk.Gravity.SOUTH, ev)
+        menu.popup_at_rect(self.get_window(), rect, anchor, gravity, ev)
 
     @staticmethod
     def _mi(label, cb, sensitive=True):
@@ -453,11 +508,12 @@ class Dock(Gtk.Window):
         baseline = H - self.below
         side = S * 0.35
 
+        cr.save()
+        cr.transform(self._matrix())
         if self.style == "shelf":
             path = self._shelf(cr, x0 - side, x0 + total + side)
         else:
             path = self._box(cr, x0 - side * 0.4, x0 + total + side * 0.4)
-
         for sl in self.slots:
             if sl.kind == "sep":
                 cx = sl.x + sl.width / 2.0
@@ -468,6 +524,10 @@ class Dock(Gtk.Window):
                     cr.set_source_rgba(1, 1, 1, 0.45)
                     cr.rectangle(cx - 0.5, baseline - S + 4, 1, S - 8)
                 cr.fill()
+        cr.restore()
+
+        for sl in self.slots:
+            if sl.kind == "sep":
                 continue
             if sl.size < 1:
                 continue
@@ -498,7 +558,8 @@ class Dock(Gtk.Window):
                 cr.mask(mg)
                 cr.restore()
             cr.save()
-            cr.translate(ix, iy)
+            dx, dy, _w, _h = self._dev_rect(ix, iy, size, size)
+            cr.translate(dx, dy)
             cr.scale(scale, scale)
             Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
             cr.get_source().set_filter(cairo.FILTER_GOOD)
@@ -509,7 +570,8 @@ class Dock(Gtk.Window):
                 cr.mask(pat)
             cr.restore()
             if sl.kind == "app" and sl.group.running and sl.grow > 0.6:
-                self._dot(cr, ix + size / 2.0, H - (self.shelf_h * 0.28 + 3 if self.style == "shelf" else 4.5))
+                self._dot(cr, *self._dev(ix + size / 2.0,
+                                         H - (self.shelf_h * 0.28 + 3 if self.style == "shelf" else 4.5)))
 
         # name label above the hovered icon
         if self.hover and self.mouse_x is not None and not self.menu_open:
@@ -520,7 +582,11 @@ class Dock(Gtk.Window):
                     self._kick()
                 name = {"trash": "Trash", "launchpad": "Launchpad"}.get(sl.kind) or sl.group.name
                 cr.push_group()
-                self._label(cr, sl.x + sl.width / 2.0, baseline - sl.size - 10, name)
+                if self.pos == "bottom":
+                    self._label(cr, sl.x + sl.width / 2.0, baseline - sl.size - 10, name)
+                else:
+                    ex, cy = self._dev(sl.x + sl.width / 2.0, baseline - sl.size - 10)
+                    self._label_side(cr, ex, cy, name)
                 cr.pop_group_to_source()
                 cr.paint_with_alpha(self._label_alpha())
         return False
@@ -638,6 +704,35 @@ class Dock(Gtk.Window):
         core.add_color_stop_rgba(1, 0.75, 0.9, 1, 1)
         cr.set_source(core)
         cr.arc(x, y, 2.6, 0, 2 * math.pi)
+        cr.fill()
+
+    def _label_side(self, cr, edge_x, cy, text):
+        """Name label beside an icon of a Dock on the left / right."""
+        layout = PangoCairo.create_layout(cr)
+        layout.set_font_description(Pango.FontDescription("Inter, Sans 10"))
+        layout.set_text(text, -1)
+        tw, th = layout.get_pixel_size()
+        w, h = tw + 22, th + 10
+        x = edge_x if self.pos == "left" else edge_x - w
+        y = cy - h / 2.0
+        self._label_box(cr, x, y, w, h)
+        cr.move_to(x + 11, y + 5)
+        cr.set_source_rgba(1, 1, 1, 1)
+        PangoCairo.show_layout(cr, layout)
+
+    def _label_box(self, cr, x, y, w, h):
+        art.rounded_rect(cr, x, y, w, h, h / 2.0)
+        g = cairo.LinearGradient(0, y, 0, y + h)
+        g.add_color_stop_rgba(0, 0.30, 0.32, 0.38, 0.88)
+        g.add_color_stop_rgba(0.5, 0.15, 0.16, 0.2, 0.88)
+        g.add_color_stop_rgba(1, 0.1, 0.1, 0.14, 0.9)
+        cr.set_source(g)
+        cr.fill_preserve()
+        cr.set_source_rgba(1, 1, 1, 0.35)
+        cr.set_line_width(1)
+        cr.stroke()
+        art.rounded_rect(cr, x + 3, y + 1.5, w - 6, h * 0.45, h / 2.5)
+        cr.set_source_rgba(1, 1, 1, 0.12)
         cr.fill()
 
     def _label(self, cr, cx, bottom, text):

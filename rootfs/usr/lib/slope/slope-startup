@@ -1,6 +1,7 @@
 #!/bin/sh
 # Started by Openbox once the window manager is up.
 mkdir -p "$HOME/.cache" "$HOME/.config/slope"
+slope-ctl picom-config >/dev/null 2>&1   # windows minimize towards the Dock
 /usr/lib/slope/slope-compositor &
 
 # trackpad / mouse settings (scroll direction, tap to click...) and gestures

@@ -465,6 +465,7 @@ class Store(Gtk.Window):
         self.icons = Icons()
         self.ops = Operations(self)
         self.pills = {}              # pkg -> [(button, kind)]
+        self.card_progress = {}      # pkg -> [(bar, status label, summary label)]
         self.history = []
         self.detail_app = None
 
@@ -523,6 +524,7 @@ class Store(Gtk.Window):
             if old is not None:
                 old.destroy()
         self.pills = {}
+        self.card_progress = {}
         self.stack.add_named(self._page(self._discover()), "discover")
         self.stack.add_named(self._page(self._categories()), "categories")
         self.stack.add_named(self._page(Gtk.Box()), "installed")
@@ -633,6 +635,16 @@ class Store(Gtk.Window):
         summ.set_ellipsize(Pango.EllipsizeMode.END)
         summ.get_style_context().add_class("store-summary")
         text.pack_start(summ, False, False, 0)
+        # progress while this app installs: a bar and what is happening
+        bar = Gtk.ProgressBar()
+        bar.set_no_show_all(True)
+        status = Gtk.Label(xalign=0)
+        status.set_no_show_all(True)
+        status.set_ellipsize(Pango.EllipsizeMode.END)
+        status.get_style_context().add_class("store-summary")
+        text.pack_start(bar, False, False, 2)
+        text.pack_start(status, False, False, 0)
+        self.card_progress.setdefault(app.pkg, []).append((bar, status, summ))
         card.pack_start(text, True, True, 0)
         card.pack_end(self._pill(app), False, False, 0)
         ev.add(card)
@@ -679,6 +691,22 @@ class Store(Gtk.Window):
                 continue
             for b in buttons:
                 self._update_pill(b, a)
+        for p, rows in self.card_progress.items():
+            if pkg is not None and p != pkg:
+                continue
+            prog = self.ops.progress.get(p)
+            for bar, status, summ in rows:
+                if prog is None:
+                    bar.hide()
+                    status.hide()
+                    summ.show()
+                    continue
+                pct, text = prog
+                bar.set_fraction(max(0.0, min(1.0, pct / 100.0)))
+                status.set_text("%s  ·  %d%%" % (text or "Waiting…", pct) if pct else (text or "Waiting…"))
+                summ.hide()
+                bar.show()
+                status.show()
 
     def _pill_clicked(self, app):
         if self.cat.is_installed(app):

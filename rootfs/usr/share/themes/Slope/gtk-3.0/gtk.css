@@ -290,14 +290,18 @@ menu menuitem:hover {
 menu menuitem label, menu menuitem:backdrop label, menu:backdrop menuitem label,
 menu menuitem accellabel, menu menuitem:backdrop { color: @slope_text; }
 menu menuitem arrow, menu menuitem:backdrop arrow { color: alpha(@slope_text, 0.7); }
-menu menuitem:hover label, menu menuitem:hover:backdrop label, menu menuitem:hover accelerator,
-menu menuitem:hover arrow, menu menuitem:hover:backdrop arrow, menu menuitem:hover:backdrop { color: #ffffff; }
+/* only the highlighted item's own text (">"), not the labels of a submenu opened from it */
+menu menuitem:hover > label, menu menuitem:hover > box > label, menu menuitem:hover:backdrop > label,
+menu menuitem:hover:backdrop > box > label, menu menuitem:hover > accelerator,
+menu menuitem:hover > box > accelerator, menu menuitem:hover > arrow,
+menu menuitem:hover:backdrop > arrow, menu menuitem:hover:backdrop { color: #ffffff; }
 menu menuitem:disabled, menu menuitem:disabled label, menu menuitem:disabled:backdrop label,
 menu:backdrop menuitem:disabled label { color: alpha(@slope_text, 0.38); }
 menu separator { margin: 4px 6px; background-color: rgba(0, 0, 0, 0.12); min-height: 1px; }
 menu menuitem accelerator, menu .accelerator, menu menuitem:backdrop accelerator,
 menu menuitem:backdrop .accelerator { color: alpha(@slope_text, 0.5); }
-menu menuitem:hover accelerator, menu menuitem:hover .accelerator { color: rgba(255, 255, 255, 0.85); }
+menu menuitem:hover > accelerator, menu menuitem:hover > box > accelerator,
+menu menuitem:hover > .accelerator, menu menuitem:hover > box > .accelerator { color: rgba(255, 255, 255, 0.85); }
 menu menuitem check, menu menuitem radio {
   background-image: none; border: none; box-shadow: none; color: @slope_text;
   -gtk-icon-shadow: none;

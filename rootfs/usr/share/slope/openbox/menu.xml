@@ -17,7 +17,7 @@
   </menu>
   <menu id="root-menu" label="Slope">
     <item label="Terminal"><action name="Execute"><command>gio launch /usr/share/applications/xfce4-terminal.desktop</command></action></item>
-    <item label="Files"><action name="Execute"><command>gio launch /usr/share/applications/thunar.desktop</command></action></item>
+    <item label="Files"><action name="Execute"><command>gio launch /usr/share/applications/slope-files.desktop</command></action></item>
     <separator/>
     <item label="System Settings"><action name="Execute"><command>slope-settings</command></action></item>
     <item label="Restart Window Manager"><action name="Restart"/></item>

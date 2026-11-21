@@ -37,6 +37,8 @@ class Desktop(Gtk.Window):
         self._old = None
         self._fade = 1.0
         self.place()
+        from .desktop_icons import DesktopIcons
+        self.icons = DesktopIcons(self, shell)
 
     def place(self):
         scr = self.get_screen()
@@ -77,6 +79,8 @@ class Desktop(Gtk.Window):
             # cross-fade from the previous wallpaper
             cr.set_source_surface(self._old, 0, 0)
             cr.paint_with_alpha(1.0 - self._fade)
+        if getattr(self, "icons", None) is not None:
+            self.icons.draw(cr)
         return False
 
     def reload(self):
@@ -100,38 +104,7 @@ class Desktop(Gtk.Window):
 
     def _press(self, w, ev):
         self.shell.panel.dismiss_popovers()
-        if ev.button != 3:
-            return False
-        menu = Gtk.Menu()
-        for label, cb in (
-            ("New Folder on Desktop", self._new_folder),
-            ("Open Terminal", lambda: open_app("xfce4-terminal.desktop")),
-            ("Open Files", lambda: open_app("thunar.desktop")),
-            (None, None),
-            ("Change Wallpaper…", lambda: spawn(["slope-settings", "--page", "appearance"])),
-            ("Display Settings…", lambda: spawn(["slope-settings", "--page", "displays"])),
-        ):
-            if label is None:
-                menu.append(Gtk.SeparatorMenuItem())
-                continue
-            mi = Gtk.MenuItem(label=label)
-            mi.connect("activate", lambda m, c=cb: c())
-            menu.append(mi)
-        menu.show_all()
-        menu.attach_to_widget(self, None)
-        menu.popup_at_pointer(ev)
-        return True
-
-    def _new_folder(self):
-        d = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) or os.path.expanduser("~/Desktop")
-        os.makedirs(d, exist_ok=True)
-        base = os.path.join(d, "untitled folder")
-        p, i = base, 2
-        while os.path.exists(p):
-            p = "%s %d" % (base, i)
-            i += 1
-        os.makedirs(p)
-        open_app("thunar.desktop", d)
+        return self.icons.handle_press(ev)
 
 
 class Shell:
@@ -183,6 +156,7 @@ class Shell:
         self.desktop.place()
         self.panel.place()
         self.dock.place()
+        GLib.timeout_add(500, lambda: (self.desktop.icons.layout(), False)[1])
         return False
 
     def _apply_input(self):
@@ -194,11 +168,18 @@ class Shell:
     def _settings_changed(self, *args):
         new = load_settings()
         wallpaper_changed = new.get("wallpaper") != self.settings.get("wallpaper")
+        dock_moved = new.get("dock_position", "bottom") != self.settings.get("dock_position", "bottom")
         self.settings.clear()
         self.settings.update(new)
         if wallpaper_changed:
             self.desktop.reload()
         self.dock.configure()
+        if dock_moved:
+            # the free area for desktop icons changes with the Dock
+            GLib.timeout_add(600, lambda: (self.desktop.icons.layout(), False)[1])
+            # windows minimize towards the Dock: update the compositor too
+            from . import picomconf
+            picomconf.write(new.get("dock_position", "bottom"))
         self.panel._tick()
 
     # -- newly installed apps --------------------------------------------
@@ -254,14 +235,16 @@ class Shell:
         mon = disp.get_primary_monitor() or disp.get_monitor(0)
         return mon.get_geometry()
 
-    def set_strut(self, win, top=0, bottom=0, top_start=0, top_end=0, bottom_start=0, bottom_end=0):
+    def set_strut(self, win, top=0, bottom=0, top_start=0, top_end=0, bottom_start=0, bottom_end=0,
+                  left=0, right=0, left_start=0, left_end=0, right_start=0, right_end=0):
         gw = win.get_window()
         if gw is None:
             return
         from gi.repository import GdkX11  # noqa: F401
         xid = gw.get_xid()
         x = self.apps.x
-        vals = [0, 0, top, bottom, 0, 0, 0, 0, top_start, top_end, bottom_start, bottom_end]
+        vals = [left, right, top, bottom, left_start, left_end, right_start, right_end,
+                top_start, top_end, bottom_start, bottom_end]
         w = x.win(xid)
         w.change_property(x.atom("_NET_WM_STRUT_PARTIAL"), x.Xatom.CARDINAL, 32, vals)
         w.change_property(x.atom("_NET_WM_STRUT"), x.Xatom.CARDINAL, 32, vals[:4])

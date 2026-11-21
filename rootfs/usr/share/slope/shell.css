@@ -41,7 +41,7 @@ menuitem.slope-slider-item, menuitem.slope-slider-item:hover {
   padding: 6px 12px;
 }
 .accelerator { color: alpha(#1d1d1f, 0.5); }
-menu menuitem:hover .accelerator { color: rgba(255, 255, 255, 0.85); }
+menu menuitem:hover > .accelerator, menu menuitem:hover > box > .accelerator { color: rgba(255, 255, 255, 0.85); }
 
 /* Spotlight */
 .slope-spotlight { background: transparent; }
@@ -66,6 +66,7 @@ menu menuitem:hover .accelerator { color: rgba(255, 255, 255, 0.85); }
 
 /* Top-bar menus belong to a window that never has focus ("backdrop"): force crisp text. */
 menu menuitem, menu menuitem label, menu menuitem:backdrop, menu menuitem:backdrop label { color: #1d1d1f; }
-menu menuitem:hover, menu menuitem:hover label, menu menuitem:hover:backdrop,
-menu menuitem:hover:backdrop label { color: #ffffff; }
+menu menuitem:hover, menu menuitem:hover > label, menu menuitem:hover > box > label,
+menu menuitem:hover:backdrop, menu menuitem:hover:backdrop > label,
+menu menuitem:hover:backdrop > box > label { color: #ffffff; }
 menu menuitem:disabled, menu menuitem:disabled label, menu menuitem:disabled:backdrop label { color: rgba(29, 29, 31, 0.38); }
