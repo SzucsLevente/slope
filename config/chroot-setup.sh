@@ -46,7 +46,7 @@ rm -f /usr/share/xsessions/openbox.desktop /usr/share/xsessions/lightdm-xsession
 
 # hide technical launchers from Spotlight
 for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton \
-         display-im6.q16 display-im7.q16 nm-applet thunar-settings thunar-bulk-rename \
+         display-im6.q16 display-im7.q16 nm-applet thunar thunar-settings thunar-bulk-rename \
          thunar-volman-settings org.xfce.mousepad-settings xfce4-terminal-settings \
          calamares org.kde.calamares xfce4-notifyd-config vim; do
   d="/usr/share/applications/$f.desktop"
@@ -68,7 +68,8 @@ rename_app() {  # desktop-file new-name
   sed -i "0,/^Name=.*/s//Name=$2/" "$f"
   sed -i '/^Name\[/d' "$f"
 }
-rename_app thunar.desktop "Files"
+# Files is Slope's own file manager (slope-files); Thunar stays installed but hidden
+xdg-mime default slope-files.desktop inode/directory 2>/dev/null || true
 rename_app xfce4-terminal.desktop "Terminal"
 rename_app org.xfce.mousepad.desktop "TextEdit"
 rename_app org.xfce.ristretto.desktop "Preview"
@@ -85,6 +86,11 @@ echo "--- glossy Slope icon theme"
 # every installed app (and popular ones people add later) on a glossy tile;
 # an apt hook (/etc/apt/apt.conf.d/99slope-icons) does the same after installs
 PYTHONPATH=/usr/lib/slope python3 -m slope.icons --update --popular
+
+echo "--- 32-bit packages (Steam, Wine)"
+# Steam and Wine need Ubuntu's 32-bit (i386) libraries; apt fetches their
+# package lists from the first "apt update" on
+dpkg --add-architecture i386
 
 echo "--- App Store"
 # the live user may install apps without a password (the installed system asks);
@@ -172,6 +178,7 @@ chmod 600 /etc/netplan/*.yaml
 install -Dm644 /usr/share/backgrounds/slope/wifi-256.png /usr/share/icons/hicolor/256x256/apps/slope-wifi.png
 install -Dm644 /usr/share/backgrounds/slope/settings-256.png /usr/share/icons/hicolor/256x256/apps/slope-settings.png
 install -Dm644 /usr/share/backgrounds/slope/store-256.png /usr/share/icons/hicolor/256x256/apps/slope-store.png
+install -Dm644 /usr/share/backgrounds/slope/files-256.png /usr/share/icons/hicolor/256x256/apps/slope-files.png
 gtk-update-icon-cache -q -f /usr/share/icons/hicolor || true
 
 echo "--- live session"

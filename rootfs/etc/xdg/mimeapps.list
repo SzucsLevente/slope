@@ -1,5 +1,5 @@
 [Default Applications]
-inode/directory=thunar.desktop
+inode/directory=slope-files.desktop
 text/plain=org.xfce.mousepad.desktop
 text/x-python=org.xfce.mousepad.desktop
 text/x-shellscript=org.xfce.mousepad.desktop

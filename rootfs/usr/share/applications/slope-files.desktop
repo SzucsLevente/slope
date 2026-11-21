@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+GenericName=File Manager
+Comment=Browse your files and folders
+Exec=slope-files %U
+Icon=slope-files
+Terminal=false
+Categories=System;Utility;Core;GTK;FileTools;FileManager;
+MimeType=inode/directory;
+Keywords=folder;finder;explorer;files;browse;
+StartupWMClass=slope-files
+DBusActivatable=false
+Actions=new-window;trash;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=slope-files
+
+[Desktop Action trash]
+Name=Trash
+Exec=slope-files trash:///

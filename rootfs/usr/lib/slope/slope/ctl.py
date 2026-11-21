@@ -14,6 +14,7 @@
   switch next|previous   switch to the next / previous app window
   key COMBO      press a key combination, e.g. "alt+Left" (used by gestures)
   input          apply trackpad, mouse and gesture settings (at login)
+  picom-config   write ~/.config/slope/picom.conf (Dock position for animations)
 """
 import os
 import sys
@@ -44,6 +45,10 @@ def main(argv=None):
     if cmd == "input":
         from . import inputdev
         inputdev.apply()
+        return 0
+    if cmd == "picom-config":
+        from . import picomconf
+        picomconf.write(reload=False)
         return 0
     from .xutil import X11
     x = X11()

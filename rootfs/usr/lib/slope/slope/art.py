@@ -514,6 +514,97 @@ def draw_settings_icon(cr, x, y, s):
     _gloss(cr, x, y, s)
 
 
+# Folder colours (like macOS tags).  "blue" is the normal folder.
+FOLDER_COLORS = [
+    ("blue", "Blue", "#5aa9f5"),
+    ("red", "Red", "#ff5f57"),
+    ("orange", "Orange", "#ff9f2e"),
+    ("yellow", "Yellow", "#f7c843"),
+    ("green", "Green", "#34c759"),
+    ("purple", "Purple", "#b06ef0"),
+    ("pink", "Pink", "#ff7ac0"),
+    ("graphite", "Graphite", "#8e96a6"),
+]
+
+
+def _shade(rgb, k):
+    """k > 1 lighter, k < 1 darker"""
+    r, g, b = rgb
+    if k >= 1:
+        t = k - 1
+        return (r + (1 - r) * t, g + (1 - g) * t, b + (1 - b) * t)
+    return (r * k, g * k, b * k)
+
+
+def draw_folder(cr, x, y, s, color="#5aa9f5"):
+    """A glossy Mac OS X style folder (back panel with a tab, front pocket)."""
+    base = hex_rgb(color) if isinstance(color, str) else color
+    w, h = s, s * 0.78
+    top = y + (s - h) / 2.0 + s * 0.02
+    r = s * 0.06
+    # back panel with tab
+    tab_w, tab_h = w * 0.40, h * 0.12
+    cr.new_path()
+    cr.move_to(x + r, top)
+    cr.line_to(x + tab_w - r, top)
+    cr.curve_to(x + tab_w, top, x + tab_w + tab_h * 0.4, top + tab_h, x + tab_w + tab_h, top + tab_h)
+    cr.line_to(x + w - r, top + tab_h)
+    cr.arc(x + w - r, top + tab_h + r, r, -math.pi / 2, 0)
+    cr.line_to(x + w, top + h - r)
+    cr.arc(x + w - r, top + h - r, r, 0, math.pi / 2)
+    cr.line_to(x + r, top + h)
+    cr.arc(x + r, top + h - r, r, math.pi / 2, math.pi)
+    cr.line_to(x, top + r)
+    cr.arc(x + r, top + r, r, math.pi, 3 * math.pi / 2)
+    cr.close_path()
+    g = cairo.LinearGradient(0, top, 0, top + h)
+    g.add_color_stop_rgb(0, *_shade(base, 0.78))
+    g.add_color_stop_rgb(1, *_shade(base, 0.62))
+    cr.set_source(g)
+    cr.fill_preserve()
+    cr.set_source_rgba(0, 0, 0, 0.25)
+    cr.set_line_width(max(1, s / 90.0))
+    cr.stroke()
+    # a sheet of paper peeking out
+    rounded_rect(cr, x + w * 0.07, top + tab_h + h * 0.04, w * 0.86, h * 0.5, r * 0.6)
+    cr.set_source_rgb(0.97, 0.98, 1.0)
+    cr.fill()
+    # front pocket
+    ft = top + h * 0.30
+    rounded_rect(cr, x, ft, w, top + h - ft, r)
+    g = cairo.LinearGradient(0, ft, 0, top + h)
+    g.add_color_stop_rgb(0, *_shade(base, 1.38))
+    g.add_color_stop_rgb(0.5, *_shade(base, 1.08))
+    g.add_color_stop_rgb(1, *_shade(base, 0.9))
+    cr.set_source(g)
+    cr.fill_preserve()
+    cr.set_source_rgba(0, 0, 0, 0.22)
+    cr.set_line_width(max(1, s / 90.0))
+    cr.stroke()
+    # glossy highlight and bright top edge on the pocket
+    cr.save()
+    rounded_rect(cr, x, ft, w, top + h - ft, r)
+    cr.clip()
+    hg = cairo.LinearGradient(0, ft, 0, ft + (top + h - ft) * 0.5)
+    hg.add_color_stop_rgba(0, 1, 1, 1, 0.55)
+    hg.add_color_stop_rgba(1, 1, 1, 1, 0.0)
+    cr.rectangle(x, ft, w, (top + h - ft) * 0.5)
+    cr.set_source(hg)
+    cr.fill()
+    cr.restore()
+    cr.set_source_rgba(1, 1, 1, 0.85)
+    cr.rectangle(x + r, ft + 1, w - 2 * r, max(1, s / 64.0))
+    cr.fill()
+    return ft, top + h          # pocket area (for a symbol)
+
+
+def draw_files_icon(cr, x, y, s):
+    """Slope Files: a glossy silver tile with a blue folder."""
+    _glossy_tile(cr, x, y, s, "#f6f8fb", "#aeb7c6")
+    draw_folder(cr, x + s * 0.14, y + s * 0.15, s * 0.72, "#4fa3f7")
+    _gloss(cr, x, y, s)
+
+
 def draw_store_icon(cr, x, y, s):
     """Blue glossy tile with a white shopping bag (Slope Store)."""
     _glossy_tile(cr, x, y, s, "#6fd0ff", "#1556d8")
@@ -622,6 +713,8 @@ def _cli():
                lambda cr, w, h: draw_wifi_icon(cr, 8, 8, w - 16))
     render_png(os.path.join(out, "settings-256.png"), 256, 256,
                lambda cr, w, h: draw_settings_icon(cr, 8, 8, w - 16))
+    render_png(os.path.join(out, "files-256.png"), 256, 256,
+               lambda cr, w, h: draw_files_icon(cr, 8, 8, w - 16))
     render_png(os.path.join(out, "store-256.png"), 256, 256,
                lambda cr, w, h: draw_store_icon(cr, 8, 8, w - 16))
 

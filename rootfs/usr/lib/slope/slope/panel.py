@@ -419,7 +419,7 @@ class Panel(Gtk.Window):
         home = GLib.get_home_dir()
 
         def go(path):
-            return lambda: open_app("thunar.desktop", path)
+            return lambda: open_app("slope-files.desktop", path)
 
         def xdg(kind, fallback):
             p = GLib.get_user_special_dir(kind)

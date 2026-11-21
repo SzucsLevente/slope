@@ -15,7 +15,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=${WORK:-/var/tmp/slope-work}
 OUT=${OUT:-$HERE/out}
-SUITE=${SUITE:-noble}
+SUITE=${SUITE:-resolute}          # Ubuntu 26.04 LTS
 ARCH=amd64
 MIRROR=${MIRROR:-http://archive.ubuntu.com/ubuntu}
 SQUASHFS_COMP=${SQUASHFS_COMP:-xz}
@@ -77,7 +77,8 @@ in_chroot() { in_root "$CHROOT" "$@"; }
 # ---------------------------------------------------------------------------
 umount_chroot
 BASE="$WORK/base-$SUITE.tgz"
-if [ "$MODE" = "--update" ] && [ -x "$CHROOT/usr/bin/apt-get" ]; then
+if [ "$MODE" = "--update" ] && [ -x "$CHROOT/usr/bin/apt-get" ] &&
+   grep -q "^VERSION_CODENAME=$SUITE\$" "$CHROOT/etc/os-release" 2>/dev/null; then
   log "Reusing the existing system in $CHROOT (--update)"
 elif rm -rf "$CHROOT" && [ -f "$BASE" ]; then
   log "Unpacking cached base system"
@@ -85,25 +86,29 @@ elif rm -rf "$CHROOT" && [ -f "$BASE" ]; then
   tar -C "$CHROOT" -xzf "$BASE"
 else
   log "Bootstrapping Ubuntu $SUITE"
+  # an older debootstrap may not know this release yet: every Ubuntu release
+  # uses the same script ("gutsy")
+  SCRIPT=""
+  [ -e "/usr/share/debootstrap/scripts/$SUITE" ] || SCRIPT=/usr/share/debootstrap/scripts/gutsy
   debootstrap --arch="$ARCH" --variant=minbase --components=main,universe \
-    "$SUITE" "$CHROOT" "$MIRROR"
+    "$SUITE" "$CHROOT" "$MIRROR" $SCRIPT
   tar -C "$CHROOT" -czf "$BASE" .
 fi
 
 # ---------------------------------------------------------------------------
 # 1b. locally built packages, made once in a throwaway chroot and cached in
 #     $WORK/debs/local-<hash>:
-#       - Openbox with full-colour PNG title-bar buttons (packages/openbox)
-#       - libconfig 1.7 + picom 12 back-ported for window animations (packages/picom)
+#       - Openbox with full-colour PNG title-bar buttons and a frame on every
+#         app (packages/openbox)
 #       - libslope-keepalive.so: Mac-style app lifetime for GTK apps (packages/keepalive)
 #       - slope-gestures: trackpad gesture daemon (packages/gestures)
 # ---------------------------------------------------------------------------
-LOCAL_KEY=$(cat "$HERE"/packages/openbox/*.patch "$HERE"/packages/picom/sources.txt \
-  "$HERE"/packages/keepalive/*.c "$HERE"/packages/gestures/*.c | sha256sum | cut -c1-12)
+LOCAL_KEY=$( (echo "$SUITE"; cat "$HERE"/packages/openbox/*.patch \
+  "$HERE"/packages/keepalive/*.c "$HERE"/packages/gestures/*.c) | sha256sum | cut -c1-12)
 DEBS="$WORK/debs/local-$LOCAL_KEY"
-if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so \
+if ! ls "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so \
      "$DEBS"/slope-gestures >/dev/null 2>&1; then
-  log "Building local packages (Openbox patch, libconfig 1.7, picom 12)"
+  log "Building local packages (patched Openbox, keepalive, gestures)"
   [ -f "$BASE" ] || die "missing $BASE"
   umount_chroot "$OBBUILD"
   rm -rf "${OBBUILD:?}"
@@ -118,12 +123,6 @@ if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so 
   mkdir -p "$OBBUILD/build"
   cp "$HERE"/packages/openbox/*.patch "$HERE"/packages/keepalive/*.c "$HERE"/packages/gestures/*.c \
      "$OBBUILD/build/"
-  # source packages from the Ubuntu archive pool
-  grep -v '^\s*#' "$HERE/packages/picom/sources.txt" | grep -v '^\s*$' | while read -r dir files; do
-    for f in $files; do
-      curl -fsSL -o "$OBBUILD/build/$f" "$MIRROR/pool/$dir/$f" || die "cannot download $f"
-    done
-  done
   in_root "$OBBUILD" apt-get update
   in_root "$OBBUILD" apt-get -y install --no-install-recommends dpkg-dev build-essential fakeroot patch
   in_root "$OBBUILD" apt-get -y build-dep --no-install-recommends openbox
@@ -131,24 +130,14 @@ if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so 
     for p in ../*.patch; do patch -p1 < "$p"; done &&
     sed -i "1s/(\([^)]*\))/(\1+slope1)/" debian/changelog &&
     DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us'
-  in_root "$OBBUILD" /bin/sh -ec 'cd /build && dpkg-source -x --no-check libconfig_*.dsc &&
-    cd libconfig-1.7*/ && apt-get -y build-dep --no-install-recommends ./ &&
-    sed -i "1s/(\([^)]*\))/(\1~slope24.04)/" debian/changelog &&
-    DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us &&
-    dpkg -i ../libconfig11_*.deb ../libconfig-dev_*.deb'
-  in_root "$OBBUILD" /bin/sh -ec 'cd /build && dpkg-source -x --no-check picom_*.dsc &&
-    cd picom-*/ && apt-get -y build-dep --no-install-recommends ./ &&
-    sed -i "1s/(\([^)]*\))/(\1~slope24.04)/" debian/changelog &&
-    DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us -d'
   in_root "$OBBUILD" apt-get -y install --no-install-recommends libx11-dev libxi-dev
   in_root "$OBBUILD" /bin/sh -ec 'cd /build &&
     gcc -shared -fPIC -O2 -Wall -Wl,-z,relro,-z,now -o libslope-keepalive.so slope-keepalive.c -ldl &&
     gcc -O2 -Wall -Wl,-z,relro,-z,now -o slope-gestures slope-gestures.c -lXi -lX11 -lm'
   mkdir -p "$DEBS"
   cp "$OBBUILD"/build/libslope-keepalive.so "$OBBUILD"/build/slope-gestures "$DEBS/"
-  cp "$OBBUILD"/build/openbox_*_amd64.deb "$OBBUILD"/build/libobrender32v5_*.deb \
-     "$OBBUILD"/build/libobt2v5_*.deb "$OBBUILD"/build/libconfig11_*.deb \
-     "$OBBUILD"/build/picom_*_amd64.deb "$DEBS/"
+  cp "$OBBUILD"/build/openbox_*_amd64.deb "$OBBUILD"/build/libobrender*_amd64.deb \
+     "$OBBUILD"/build/libobt*_amd64.deb "$DEBS/"
   umount_chroot "$OBBUILD"
   rm -rf "${OBBUILD:?}"
 fi
@@ -177,15 +166,20 @@ if [ -n "${http_proxy:-}" ]; then
 fi
 
 log "Installing packages (this takes a while)"
+# falkon's install script links its dictionaries into /usr/share/qt5, which a
+# Qt 6 system doesn't have (Ubuntu packaging bug): make the folder first
+mkdir -p "$CHROOT/usr/share/qt5"
 in_chroot apt-get update
 in_chroot apt-get -y upgrade
 mapfile -t PKGS < <(grep -v '^\s*#' "$HERE/config/packages.txt" | grep -v '^\s*$')
 in_chroot apt-get -y install --no-install-recommends "${PKGS[@]}"
 
-log "Installing locally built packages (Openbox, picom 12)"
+log "Installing the patched Openbox"
 mkdir -p "$CHROOT/var/cache/slope-debs"
 cp "$DEBS"/*.deb "$CHROOT/var/cache/slope-debs/"
-in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb && apt-mark hold openbox libobrender32v5 libobt2v5 picom'
+# hold them, so an Ubuntu update never replaces Slope's Openbox
+in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb &&
+  for d in /var/cache/slope-debs/*.deb; do apt-mark hold "$(dpkg-deb -f "$d" Package)"; done'
 # the App Store catalogue (AppStream / DEP-11): apt only downloads it once the
 # appstream package is installed, so update once more and build its cache
 in_chroot apt-get update
@@ -201,13 +195,13 @@ log "Installing the Slope desktop"
 cp -a "$HERE/rootfs/." "$CHROOT/"
 # what the App Store must never remove (Slope's own packages)
 grep -v '^\s*#' "$HERE/config/packages.txt" | grep -v '^\s*$' > "$CHROOT/usr/share/slope/core-packages.txt"
-printf '%s\n' openbox libobrender32v5 libobt2v5 picom libconfig11 >> "$CHROOT/usr/share/slope/core-packages.txt"
+printf '%s\n' openbox libobrender32 libobt2 picom libconfig11 >> "$CHROOT/usr/share/slope/core-packages.txt"
 find "$CHROOT/usr/lib/slope" -name __pycache__ -prune -exec rm -rf {} +
 cat > "$CHROOT/etc/slope-release" <<EOF
 NAME="Slope"
 VERSION="$VERSION"
 CODENAME="Glacier"
-BASE="Ubuntu 24.04 LTS"
+BASE="Ubuntu 26.04 LTS"
 BUILD_DATE="$(date -u +%Y-%m-%d)"
 EOF
 cp "$HERE/config/chroot-setup.sh" "$CHROOT/tmp/chroot-setup.sh"
@@ -218,7 +212,7 @@ in_chroot /bin/bash /tmp/chroot-setup.sh
 mkdir -p "$CHROOT/etc/apt/keyrings"
 if curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
      -o "$CHROOT/etc/apt/keyrings/packages.mozilla.org.asc"; then
-  printf 'Types: deb\nURIs: https://packages.mozilla.org/apt\nSuites: mozilla\nComponents: main\nSigned-By: /etc/apt/keyrings/packages.mozilla.org.asc\n' \
+  printf 'Types: deb\nURIs: https://packages.mozilla.org/apt\nSuites: mozilla\nComponents: main\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/packages.mozilla.org.asc\n' \
     > "$CHROOT/etc/apt/sources.list.d/mozilla.sources"
 else
   echo "warning: could not download Mozilla's signing key; the image will not have the Firefox .deb repository" >&2
@@ -283,15 +277,15 @@ set menu_color_normal=white/black
 set menu_color_highlight=black/light-cyan
 
 menuentry "Try Slope" {
-  linux /casper/vmlinuz boot=casper quiet splash noprompt ---
+  linux /casper/vmlinuz boot=casper quiet loglevel=3 splash noprompt ---
   initrd /casper/initrd
 }
 menuentry "Try Slope (safe graphics)" {
-  linux /casper/vmlinuz boot=casper nomodeset quiet splash noprompt ---
+  linux /casper/vmlinuz boot=casper nomodeset quiet loglevel=3 splash noprompt ---
   initrd /casper/initrd
 }
 menuentry "Try Slope (copy to RAM, then remove the USB stick)" {
-  linux /casper/vmlinuz boot=casper toram quiet splash noprompt ---
+  linux /casper/vmlinuz boot=casper toram quiet loglevel=3 splash noprompt ---
   initrd /casper/initrd
 }
 menuentry "Try Slope (verbose boot)" {

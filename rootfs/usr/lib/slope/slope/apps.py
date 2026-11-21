@@ -13,6 +13,11 @@ _GRAVEYARD = []
 
 APP_TYPES = (Wnck.WindowType.NORMAL, Wnck.WindowType.DIALOG, Wnck.WindowType.UTILITY)
 
+# system dialogs that are not apps: they stay out of the Dock, and the top bar
+# keeps showing the app that asked (e.g. the App Store asking for a password)
+SYSTEM_CLASSES = {"polkit-mate-authentication-agent-1", "polkit-gnome-authentication-agent-1",
+                  "lxpolkit", "xfce-polkit", "polkit-kde-authentication-agent-1"}
+
 
 def is_live():
     """True when running from the live USB/DVD (casper)."""
@@ -182,6 +187,8 @@ class Apps(GObject.Object):
             return False
         cls = (w.get_class_group_name() or "")
         if cls == SHELL_CLASS:
+            return False
+        if cls.lower() in SYSTEM_CLASSES or (w.get_class_instance_name() or "").lower() in SYSTEM_CLASSES:
             return False
         if w.is_skip_tasklist() and not self.is_hidden(w):
             return False

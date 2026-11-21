@@ -197,17 +197,22 @@ scale slider:hover {
   background-image: radial-gradient(circle at 50% 30%, #ffffff 0%, #e6f4ff 30%, #8cc6ff 65%, #4c9cff 100%);
 }
 
+/* Aqua "barber pole" stripes.  The stripe layer is a seamless 20px tile and the
+   animation moves it by exactly one tile, so the loop never jumps. */
 @keyframes slope-barber {
   from { background-position: 0px 0px, 0px 0px; }
-  to   { background-position: 28px 0px, 0px 0px; }
+  to   { background-position: 20px 0px, 0px 0px; }
 }
 progressbar progress {
   background-image:
-      repeating-linear-gradient(-45deg,
-          rgba(255, 255, 255, 0.35) 0px, rgba(255, 255, 255, 0.35) 7px,
-          rgba(255, 255, 255, 0.0) 7px, rgba(255, 255, 255, 0.0) 14px),
+      linear-gradient(-45deg,
+          rgba(255, 255, 255, 0.35) 25%, rgba(255, 255, 255, 0.0) 25%,
+          rgba(255, 255, 255, 0.0) 50%, rgba(255, 255, 255, 0.35) 50%,
+          rgba(255, 255, 255, 0.35) 75%, rgba(255, 255, 255, 0.0) 75%),
       linear-gradient(to bottom, #c3e3ff, #74b7fb 45%, #2f86f3 50%, #5aaeff 80%, #9fdcff);
-  animation: slope-barber 0.9s linear infinite;
+  background-size: 20px 20px, auto;
+  background-repeat: repeat, no-repeat;
+  animation: slope-barber 0.8s linear infinite;
 }
 progressbar.horizontal trough, progressbar.horizontal progress { min-height: 10px; }
 
@@ -290,14 +295,18 @@ menu menuitem:hover {
 menu menuitem label, menu menuitem:backdrop label, menu:backdrop menuitem label,
 menu menuitem accellabel, menu menuitem:backdrop { color: @slope_text; }
 menu menuitem arrow, menu menuitem:backdrop arrow { color: alpha(@slope_text, 0.7); }
-menu menuitem:hover label, menu menuitem:hover:backdrop label, menu menuitem:hover accelerator,
-menu menuitem:hover arrow, menu menuitem:hover:backdrop arrow, menu menuitem:hover:backdrop { color: #ffffff; }
+/* only the highlighted item's own text (">"), not the labels of a submenu opened from it */
+menu menuitem:hover > label, menu menuitem:hover > box > label, menu menuitem:hover:backdrop > label,
+menu menuitem:hover:backdrop > box > label, menu menuitem:hover > accelerator,
+menu menuitem:hover > box > accelerator, menu menuitem:hover > arrow,
+menu menuitem:hover:backdrop > arrow, menu menuitem:hover:backdrop { color: #ffffff; }
 menu menuitem:disabled, menu menuitem:disabled label, menu menuitem:disabled:backdrop label,
 menu:backdrop menuitem:disabled label { color: alpha(@slope_text, 0.38); }
 menu separator { margin: 4px 6px; background-color: rgba(0, 0, 0, 0.12); min-height: 1px; }
 menu menuitem accelerator, menu .accelerator, menu menuitem:backdrop accelerator,
 menu menuitem:backdrop .accelerator { color: alpha(@slope_text, 0.5); }
-menu menuitem:hover accelerator, menu menuitem:hover .accelerator { color: rgba(255, 255, 255, 0.85); }
+menu menuitem:hover > accelerator, menu menuitem:hover > box > accelerator,
+menu menuitem:hover > .accelerator, menu menuitem:hover > box > .accelerator { color: rgba(255, 255, 255, 0.85); }
 menu menuitem check, menu menuitem radio {
   background-image: none; border: none; box-shadow: none; color: @slope_text;
   -gtk-icon-shadow: none;

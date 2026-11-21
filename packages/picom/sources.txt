@@ -1,5 +1,0 @@
-# Newer packages back-ported to Ubuntu 24.04 by build.sh (fetched from the
-# Ubuntu archive pool, rebuilt in a throwaway chroot).
-#   picom 12 brings window animations; it needs libconfig >= 1.7.
-universe/libc/libconfig libconfig_1.7.3-2.1.dsc libconfig_1.7.3.orig.tar.gz libconfig_1.7.3-2.1.debian.tar.xz
-universe/p/picom picom_12.5-1build1.dsc picom_12.5.orig.tar.gz picom_12.5-1build1.debian.tar.xz

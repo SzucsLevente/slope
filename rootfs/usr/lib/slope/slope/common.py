@@ -21,7 +21,7 @@ SHARE = "/usr/share/slope"
 
 DEFAULTS = {
     "dock_apps": [
-        "thunar.desktop",
+        "slope-files.desktop",
         "org.kde.falkon.desktop",
         "xfce4-terminal.desktop",
         "org.xfce.mousepad.desktop",
@@ -35,6 +35,7 @@ DEFAULTS = {
     "dock_magnify": True,
     "dock_magnify_size": 88,
     "dock_style": "shelf",          # "shelf" (3D glass) or "box"
+    "dock_position": "bottom",      # "bottom", "left" or "right"
     "wallpaper": "slope:aqua",      # "slope:<palette>" or an image path
     "clock_24h": True,
     "clock_show_date": True,
@@ -45,6 +46,7 @@ DEFAULTS = {
 # Friendlier, macOS-style names for the bundled apps.
 FRIENDLY_NAMES = {
     "thunar": "Files",
+    "slope-files": "Files",
     "xfce4-terminal": "Terminal",
     "org.xfce.mousepad": "TextEdit",
     "mousepad": "TextEdit",
@@ -72,6 +74,11 @@ def load_settings():
             data.update(json.load(f))
     except (OSError, ValueError):
         pass
+    # Files (slope-files) replaced Thunar as the file manager
+    apps = data.get("dock_apps")
+    if isinstance(apps, list) and "thunar.desktop" in apps:
+        data["dock_apps"] = ["slope-files.desktop" if a == "thunar.desktop" else a for a in apps
+                             if a != "slope-files.desktop" or "thunar.desktop" not in apps]
     return data
 
 
@@ -340,7 +347,7 @@ def open_app(desktop_id, target=None):
         uris = [target if "://" in target else Gio.File.new_for_path(target).get_uri()]
     if info is not None and launch(info, uris):
         return True
-    cmd = {"thunar.desktop": "thunar", "xfce4-terminal.desktop": "xfce4-terminal",
+    cmd = {"slope-files.desktop": "slope-files", "thunar.desktop": "thunar", "xfce4-terminal.desktop": "xfce4-terminal",
            "pavucontrol.desktop": "pavucontrol"}.get(desktop_id, desktop_id[:-8])
     spawn([cmd] + ([target] if target else []))
     return False

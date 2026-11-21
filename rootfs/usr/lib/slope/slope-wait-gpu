@@ -1,0 +1,25 @@
+#!/bin/sh
+# Runs before LightDM starts X (lightdm.service.d/slope.conf).
+#
+# Wait up to 10 seconds for the computer's real graphics driver (a PCI or
+# virtio GPU: i915, amdgpu, nouveau, vmwgfx, virtio-gpu...).  Until it loads,
+# the only screen may be the temporary firmware framebuffer (simpledrm,
+# efidrm, vesadrm), and an X server started on that dies the moment the real
+# driver replaces it: the login screen never appeared, only a black screen.
+# If no real driver shows up, X starts anyway and uses the firmware
+# framebuffer or the generic VESA driver.
+udevadm settle --timeout=10 2>/dev/null
+i=0
+while [ $i -lt 20 ]; do
+  for dev in /sys/class/drm/card[0-9]*/device; do
+    [ -e "$dev/subsystem" ] || continue
+    case "$(basename "$(readlink -f "$dev/subsystem")")" in
+      platform) ;;          # firmware framebuffer: keep waiting
+      *) exit 0 ;;          # a real GPU driver is ready
+    esac
+  done
+  sleep 0.5
+  i=$((i + 1))
+done
+echo "slope-wait-gpu: no GPU driver after 10 s, starting X with the generic driver" >&2
+exit 0

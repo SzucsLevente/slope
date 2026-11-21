@@ -76,8 +76,8 @@
     <keybind key="W-S-q"><action name="Execute"><command>slope-settings --logout</command></action></keybind>
     <keybind key="W-t"><action name="Execute"><command>gio launch /usr/share/applications/xfce4-terminal.desktop</command></action></keybind>
     <keybind key="C-A-t"><action name="Execute"><command>gio launch /usr/share/applications/xfce4-terminal.desktop</command></action></keybind>
-    <keybind key="W-e"><action name="Execute"><command>gio launch /usr/share/applications/thunar.desktop</command></action></keybind>
-    <keybind key="W-S-h"><action name="Execute"><command>gio launch /usr/share/applications/thunar.desktop</command></action></keybind>
+    <keybind key="W-e"><action name="Execute"><command>gio launch /usr/share/applications/slope-files.desktop</command></action></keybind>
+    <keybind key="W-S-h"><action name="Execute"><command>gio launch /usr/share/applications/slope-files.desktop</command></action></keybind>
     <keybind key="Print"><action name="Execute"><command>slope-settings --screenshot</command></action></keybind>
     <keybind key="W-S-3"><action name="Execute"><command>slope-settings --screenshot</command></action></keybind>
 
