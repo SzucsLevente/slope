@@ -86,6 +86,11 @@ echo "--- glossy Slope icon theme"
 # an apt hook (/etc/apt/apt.conf.d/99slope-icons) does the same after installs
 PYTHONPATH=/usr/lib/slope python3 -m slope.icons --update --popular
 
+echo "--- 32-bit packages (Steam, Wine)"
+# Steam and Wine need Ubuntu's 32-bit (i386) libraries; apt fetches their
+# package lists from the first "apt update" on
+dpkg --add-architecture i386
+
 echo "--- App Store"
 # the live user may install apps without a password (the installed system asks);
 # Calamares deletes this rule from the installed system

@@ -46,7 +46,7 @@ CATEGORIES = [
 # hand-picked for the Discover page (package names; only those available are shown)
 FEATURED = ["firefox", "thunderbird", "gimp", "inkscape", "vlc", "libreoffice-writer", "audacity",
             "blender", "obs-studio", "kdenlive", "krita", "shotwell", "rhythmbox", "celluloid",
-            "transmission-gtk", "gnome-mines", "supertuxkart", "simple-scan", "gnome-calculator",
+            "transmission-gtk", "steam-installer", "gnome-mines", "supertuxkart", "simple-scan", "gnome-calculator",
             "geany", "darktable", "handbrake", "lollypop", "foliate"]
 
 # apps that only come from an extra repository Slope sets up (not in Ubuntu's catalogue)

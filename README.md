@@ -81,6 +81,8 @@ machine.
   one with their initials. Run `sudo slope-icons --rebuild` to regenerate.
 - **New apps show up by themselves**: you get a notification when an app is
   installed, and Launchpad marks it with a blue dot until you open it.
+- **Games**: 32-bit (i386) packages are enabled, so Steam (`steam-installer`,
+  also in the App Store) and Wine install out of the box.
 - **Completely snap-free**: snap apps ignore the desktop theme, so Slope has
   no snapd, no `/snap`, no `/snap/bin` in the PATH, and apt can never install
   snapd or any of Ubuntu's "transitional" packages that secretly install a

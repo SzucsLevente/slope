@@ -218,7 +218,7 @@ in_chroot /bin/bash /tmp/chroot-setup.sh
 mkdir -p "$CHROOT/etc/apt/keyrings"
 if curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
      -o "$CHROOT/etc/apt/keyrings/packages.mozilla.org.asc"; then
-  printf 'Types: deb\nURIs: https://packages.mozilla.org/apt\nSuites: mozilla\nComponents: main\nSigned-By: /etc/apt/keyrings/packages.mozilla.org.asc\n' \
+  printf 'Types: deb\nURIs: https://packages.mozilla.org/apt\nSuites: mozilla\nComponents: main\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/packages.mozilla.org.asc\n' \
     > "$CHROOT/etc/apt/sources.list.d/mozilla.sources"
 else
   echo "warning: could not download Mozilla's signing key; the image will not have the Firefox .deb repository" >&2
