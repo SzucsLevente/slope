@@ -452,17 +452,28 @@ class SettingsWindow(Gtk.Window):
             cb.connect("changed", lambda w: save(key, w.get_active_id()))
             v.pack_start(row(label, cb), False, False, 0)
 
+        found = inputdev.devices()
+        v.pack_start(heading("Scrolling"), False, False, 0)
+        switch("natural_scroll", "Natural scrolling",
+               "On: the content moves with your fingers, like on a Mac or a phone (swipe up to "
+               "scroll down). Off: scrolling works like a classic mouse wheel. Used for the "
+               "trackpad and every mouse.")
+        names = ", ".join(GLib.markup_escape_text(n) for _d, n, _k in found) or "none found"
+        lab = Gtk.Label(xalign=0)
+        lab.set_line_wrap(True)
+        lab.set_markup("<small>Pointing devices: %s</small>" % names)
+        lab.get_style_context().add_class("dim-label")
+        v.pack_start(lab, False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Trackpad"), False, False, 0)
-        if not inputdev.has_touchpad():
+        if not any(k == "touchpad" for _d, _n, k in found):
             lab = Gtk.Label(xalign=0)
             lab.set_line_wrap(True)
             lab.set_markup("<small>No trackpad is connected right now. These settings are used as "
                            "soon as one is.</small>")
             lab.get_style_context().add_class("dim-label")
             v.pack_start(lab, False, False, 0)
-        switch("tp_natural", "Natural scrolling",
-               "On: the content moves with your fingers, like on a Mac or a phone (swipe up to "
-               "scroll down). Off: two-finger scrolling works like a mouse wheel.")
         switch("tp_tap", "Tap to click")
         combo("tp_click", "Secondary click", [("clickfinger", "Click with two fingers"),
                                               ("areas", "Click in the bottom-right corner")])
@@ -506,8 +517,6 @@ class SettingsWindow(Gtk.Window):
 
         v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Mouse"), False, False, 0)
-        switch("mouse_natural", "Natural scrolling",
-               "On: the wheel moves the content like a finger would. Off: the usual wheel direction.")
         slider("mouse_speed", "Tracking speed", -1.0, 1.0, 0.05)
         return v
 

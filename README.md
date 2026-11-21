@@ -98,9 +98,9 @@ machine.
   once (the live session doesn't ask). The store won't remove packages Slope
   itself needs. The catalogue is Ubuntu's AppStream data, so the store opens
   even offline.
-- **Trackpad & Mouse** settings (System Settings): natural scrolling (on by
-  default, like a Mac; turn it off for wheel-style two-finger scrolling), tap to
-  click, two-finger or corner secondary click, two-finger or edge scrolling,
+- **Trackpad & Mouse** settings (System Settings): one natural-scrolling switch
+  for the trackpad, every mouse and a virtual machine's pointer (on by default,
+  like a Mac; turn it off for classic wheel-style scrolling), tap to click, two-finger or corner secondary click, two-finger or edge scrolling,
   tracking and scrolling speed, ignore-while-typing, and separate mouse
   settings. Applied at login and whenever a device is plugged in.
 - **Trackpad gestures**, each one customizable in System Settings → Trackpad &

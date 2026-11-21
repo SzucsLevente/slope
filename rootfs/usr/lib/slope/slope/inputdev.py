@@ -18,14 +18,15 @@ SETTINGS_PATH = os.path.join(CONFIG, "settings.json")
 GESTURES_PATH = os.path.join(CONFIG, "gestures.conf")
 
 DEFAULTS = {
-    "tp_natural": True,         # content follows the fingers, like on a Mac
+    # one setting for every pointing device (trackpad, mouse, a VM's pointer),
+    # like on a Mac: the content follows the fingers / the wheel
+    "natural_scroll": True,
     "tp_tap": True,             # tap to click
     "tp_click": "clickfinger",  # secondary click: "clickfinger" (two fingers) or "areas" (corner)
     "tp_scroll": "twofinger",   # "twofinger" or "edge"
     "tp_speed": 0.0,            # pointer speed -1 .. 1
     "tp_scroll_speed": 15,      # libinput scrolling pixel distance: lower = faster
     "tp_dwt": True,             # ignore the trackpad while typing
-    "mouse_natural": False,
     "mouse_speed": 0.0,
     "gestures": {
         "swipe-up-3": "launchpad",
@@ -108,7 +109,8 @@ def _xinput(*args):
 
 
 def devices():
-    """[(id, name, kind)] with kind "touchpad" or "mouse" (libinput pointers)."""
+    """[(id, name, kind)] for every pointing device: kind "touchpad", "mouse"
+    (libinput) or "other" (a driver without libinput's settings)."""
     out = []
     for line in _xinput("list").splitlines():
         m = re.search(r"↳?\s*(.+?)\s+id=(\d+)\s+\[slave\s+pointer", line)
@@ -119,10 +121,23 @@ def devices():
             continue
         props = _xinput("list-props", dev)
         if "libinput Natural Scrolling Enabled" not in props:
+            out.append((dev, name, "other"))
             continue
         kind = "touchpad" if "libinput Tapping Enabled (" in props else "mouse"
         out.append((dev, name, kind))
     return out
+
+
+def _button_map_natural(dev, on):
+    """Fallback for drivers without a natural-scrolling setting: swap the
+    scroll "buttons" (4/5 up/down, 6/7 left/right)."""
+    current = _xinput("get-button-map", dev).split()
+    if len(current) < 7:
+        return
+    m = [str(i) for i in range(1, len(current) + 1)]
+    if on:
+        m[3], m[4], m[5], m[6] = "5", "4", "7", "6"
+    _xinput("set-button-map", dev, *m)
 
 
 def has_touchpad():
@@ -135,9 +150,13 @@ def _set(dev, prop, *values):
 
 def apply(settings=None):
     s = settings or load()
+    natural = int(bool(s["natural_scroll"]))
     for dev, _name, kind in devices():
+        if kind == "other":
+            _button_map_natural(dev, natural)
+            continue
+        _set(dev, "libinput Natural Scrolling Enabled", natural)
         if kind == "touchpad":
-            _set(dev, "libinput Natural Scrolling Enabled", int(bool(s["tp_natural"])))
             _set(dev, "libinput Tapping Enabled", int(bool(s["tp_tap"])))
             _set(dev, "libinput Click Method Enabled",
                  *((0, 1) if s["tp_click"] == "clickfinger" else (1, 0)))
@@ -147,7 +166,6 @@ def apply(settings=None):
             _set(dev, "libinput Scrolling Pixel Distance", int(s["tp_scroll_speed"]))
             _set(dev, "libinput Disable While Typing Enabled", int(bool(s["tp_dwt"])))
         else:
-            _set(dev, "libinput Natural Scrolling Enabled", int(bool(s["mouse_natural"])))
             _set(dev, "libinput Accel Speed", float(s["mouse_speed"]))
     write_gestures(s)
 
