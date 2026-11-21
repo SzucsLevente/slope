@@ -96,11 +96,13 @@ fi
 #       - Openbox with full-colour PNG title-bar buttons (packages/openbox)
 #       - libconfig 1.7 + picom 12 back-ported for window animations (packages/picom)
 #       - libslope-keepalive.so: Mac-style app lifetime for GTK apps (packages/keepalive)
+#       - slope-gestures: trackpad gesture daemon (packages/gestures)
 # ---------------------------------------------------------------------------
 LOCAL_KEY=$(cat "$HERE"/packages/openbox/*.patch "$HERE"/packages/picom/sources.txt \
-  "$HERE"/packages/keepalive/*.c | sha256sum | cut -c1-12)
+  "$HERE"/packages/keepalive/*.c "$HERE"/packages/gestures/*.c | sha256sum | cut -c1-12)
 DEBS="$WORK/debs/local-$LOCAL_KEY"
-if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so >/dev/null 2>&1; then
+if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so \
+     "$DEBS"/slope-gestures >/dev/null 2>&1; then
   log "Building local packages (Openbox patch, libconfig 1.7, picom 12)"
   [ -f "$BASE" ] || die "missing $BASE"
   umount_chroot "$OBBUILD"
@@ -114,7 +116,8 @@ if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so 
   rm -f "$OBBUILD/etc/resolv.conf"
   cp -L /etc/resolv.conf "$OBBUILD/etc/resolv.conf" 2>/dev/null || true
   mkdir -p "$OBBUILD/build"
-  cp "$HERE"/packages/openbox/*.patch "$HERE"/packages/keepalive/*.c "$OBBUILD/build/"
+  cp "$HERE"/packages/openbox/*.patch "$HERE"/packages/keepalive/*.c "$HERE"/packages/gestures/*.c \
+     "$OBBUILD/build/"
   # source packages from the Ubuntu archive pool
   grep -v '^\s*#' "$HERE/packages/picom/sources.txt" | grep -v '^\s*$' | while read -r dir files; do
     for f in $files; do
@@ -137,10 +140,12 @@ if ! ls "$DEBS"/picom_*.deb "$DEBS"/openbox_*.deb "$DEBS"/libslope-keepalive.so 
     cd picom-*/ && apt-get -y build-dep --no-install-recommends ./ &&
     sed -i "1s/(\([^)]*\))/(\1~slope24.04)/" debian/changelog &&
     DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -b -uc -us -d'
+  in_root "$OBBUILD" apt-get -y install --no-install-recommends libx11-dev libxi-dev
   in_root "$OBBUILD" /bin/sh -ec 'cd /build &&
-    gcc -shared -fPIC -O2 -Wall -Wl,-z,relro,-z,now -o libslope-keepalive.so slope-keepalive.c -ldl'
+    gcc -shared -fPIC -O2 -Wall -Wl,-z,relro,-z,now -o libslope-keepalive.so slope-keepalive.c -ldl &&
+    gcc -O2 -Wall -Wl,-z,relro,-z,now -o slope-gestures slope-gestures.c -lXi -lX11 -lm'
   mkdir -p "$DEBS"
-  cp "$OBBUILD"/build/libslope-keepalive.so "$DEBS/"
+  cp "$OBBUILD"/build/libslope-keepalive.so "$OBBUILD"/build/slope-gestures "$DEBS/"
   cp "$OBBUILD"/build/openbox_*_amd64.deb "$OBBUILD"/build/libobrender32v5_*.deb \
      "$OBBUILD"/build/libobt2v5_*.deb "$OBBUILD"/build/libconfig11_*.deb \
      "$OBBUILD"/build/picom_*_amd64.deb "$DEBS/"
@@ -181,7 +186,12 @@ log "Installing locally built packages (Openbox, picom 12)"
 mkdir -p "$CHROOT/var/cache/slope-debs"
 cp "$DEBS"/*.deb "$CHROOT/var/cache/slope-debs/"
 in_chroot sh -c 'dpkg -i /var/cache/slope-debs/*.deb && apt-mark hold openbox libobrender32v5 libobt2v5 picom'
+# the App Store catalogue (AppStream / DEP-11): apt only downloads it once the
+# appstream package is installed, so update once more and build its cache
+in_chroot apt-get update
+in_chroot sh -c 'appstreamcli refresh --source=os --force >/dev/null 2>&1 || true'
 install -D -m 644 "$DEBS/libslope-keepalive.so" "$CHROOT/usr/lib/slope/libslope-keepalive.so"
+install -D -m 755 "$DEBS/slope-gestures" "$CHROOT/usr/lib/slope/slope-gestures"
 rm -rf "$CHROOT/var/cache/slope-debs"
 
 # ---------------------------------------------------------------------------
@@ -189,6 +199,9 @@ rm -rf "$CHROOT/var/cache/slope-debs"
 # ---------------------------------------------------------------------------
 log "Installing the Slope desktop"
 cp -a "$HERE/rootfs/." "$CHROOT/"
+# what the App Store must never remove (Slope's own packages)
+grep -v '^\s*#' "$HERE/config/packages.txt" | grep -v '^\s*$' > "$CHROOT/usr/share/slope/core-packages.txt"
+printf '%s\n' openbox libobrender32v5 libobt2v5 picom libconfig11 >> "$CHROOT/usr/share/slope/core-packages.txt"
 find "$CHROOT/usr/lib/slope" -name __pycache__ -prune -exec rm -rf {} +
 cat > "$CHROOT/etc/slope-release" <<EOF
 NAME="Slope"
@@ -218,7 +231,10 @@ fi
 # ---------------------------------------------------------------------------
 log "Cleaning up"
 in_chroot apt-get clean
-rm -rf "$CHROOT"/var/lib/apt/lists/* "$CHROOT"/var/cache/apt/*.bin
+# keep only the App Store catalogue (DEP-11), so the store opens offline;
+# apt fetches fresh package lists itself
+find "$CHROOT"/var/lib/apt/lists -maxdepth 1 -type f ! -name '*dep11*' -delete
+rm -rf "$CHROOT"/var/lib/apt/lists/partial/* "$CHROOT"/var/cache/apt/*.bin
 rm -f "$CHROOT/usr/sbin/policy-rc.d" "$CHROOT/etc/apt/apt.conf.d/90build-proxy"
 rm -f "$CHROOT"/var/log/*.log "$CHROOT"/var/log/apt/* 2>/dev/null || true
 rm -f "$CHROOT"/root/.bash_history

@@ -135,5 +135,47 @@ class X11:
                 out.append(c)
         return out
 
+    def stacking(self):
+        v = self.root.get_full_property(self.atom("_NET_CLIENT_LIST_STACKING"), self.Xatom.WINDOW)
+        return list(v.value) if v else []
+
+    def toggle_maximized(self, xid):
+        self._client_msg(xid, "_NET_WM_STATE", [2, self.atom("_NET_WM_STATE_MAXIMIZED_VERT"),
+                                                 self.atom("_NET_WM_STATE_MAXIMIZED_HORZ"), 2])
+
+    def lower(self, xid):
+        # _NET_RESTACK_WINDOW, source = pager, no sibling, detail Below -> bottom
+        self._client_msg(xid, "_NET_RESTACK_WINDOW", [2, 0, self.X.Below])
+
+    def showing_desktop(self):
+        v = self.root.get_full_property(self.atom("_NET_SHOWING_DESKTOP"), self.Xatom.CARDINAL)
+        return bool(v and v.value and v.value[0])
+
+    def show_desktop(self, on):
+        ev = self.event.ClientMessage(window=self.root, client_type=self.atom("_NET_SHOWING_DESKTOP"),
+                                      data=(32, [1 if on else 0, 0, 0, 0, 0]))
+        self.root.send_event(ev, event_mask=self.X.SubstructureRedirectMask | self.X.SubstructureNotifyMask)
+
+    def send_keys(self, combo):
+        """Press a key combination like "ctrl+shift+Tab" or "alt+Left" (XTest)."""
+        from Xlib import XK
+        from Xlib.ext import xtest
+        mods = {"ctrl": "Control_L", "control": "Control_L", "shift": "Shift_L", "alt": "Alt_L",
+                "super": "Super_L", "cmd": "Super_L"}
+        names = [p for p in combo.split("+") if p]
+        codes = []
+        for n in names:
+            sym = XK.string_to_keysym(mods.get(n.lower(), n))
+            if not sym and len(n) == 1:
+                sym = ord(n)
+            code = self.d.keysym_to_keycode(sym) if sym else 0
+            if code:
+                codes.append(code)
+        for c in codes:
+            xtest.fake_input(self.d, self.X.KeyPress, c)
+        for c in reversed(codes):
+            xtest.fake_input(self.d, self.X.KeyRelease, c)
+        self.d.sync()
+
     def flush(self):
         self.d.sync()

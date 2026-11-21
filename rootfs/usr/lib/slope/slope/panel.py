@@ -7,7 +7,7 @@ import cairo
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 
 from . import art
-from .common import open_app, have, logout, power, run_quiet, spawn, update_setting
+from .common import launcher_actions, open_app, have, logout, power, run_quiet, spawn, update_setting
 from .iwd import Agent, Iwd, ethernet_status, signal_bars
 from . import popover
 from .popover import Popover
@@ -329,6 +329,12 @@ class Panel(Gtk.Window):
         items = [
             cmd_item("About %s" % name, cb=lambda: self.shell.about_app(group)),
             sep(),
+        ]
+        # the app's own launcher actions: New Window, New Private Window...
+        actions = launcher_actions(group.appinfo)
+        if actions:
+            items += [cmd_item(label, cb=run) for label, run in actions] + [sep()]
+        items += [
             cmd_item("Hide %s" % name, "⌘H", cb=lambda: self.apps.hide_group(group), sensitive=group.running),
             cmd_item("Hide Others", "⌥⌘H", cb=lambda: self._hide_others(group)),
             cmd_item("Show All", cb=lambda: self.apps.unhide_all(self._ts())),
@@ -372,9 +378,17 @@ class Panel(Gtk.Window):
 
     def _generic_menus(self, group):
         """For apps that do not export a menu bar: standard menus that send shortcuts."""
-        file_m = submenu_item("File", [
-            cmd_item("New Window", "⌃N", cb=lambda: send_keys("ctrl+n")),
-            cmd_item("New Tab", "⌃T", cb=lambda: send_keys("ctrl+t")),
+        actions = launcher_actions(group.appinfo if group else None)
+        if actions:
+            # e.g. Firefox: New Window, New Private Window -- they work even
+            # when the app has no window open
+            new_items = [cmd_item(label, cb=run) for label, run in actions]
+            if not any(label == "New Tab" for label, _r in actions):
+                new_items.append(cmd_item("New Tab", "⌃T", cb=lambda: send_keys("ctrl+t")))
+        else:
+            new_items = [cmd_item("New Window", "⌃N", cb=lambda: send_keys("ctrl+n")),
+                         cmd_item("New Tab", "⌃T", cb=lambda: send_keys("ctrl+t"))]
+        file_m = submenu_item("File", new_items + [
             cmd_item("Open…", "⌃O", cb=lambda: send_keys("ctrl+o")),
             sep(),
             cmd_item("Close Window", "⌘W", cb=lambda: spawn(["slope-ctl", "close-window"])),

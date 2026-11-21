@@ -28,6 +28,7 @@ DEFAULTS = {
         "org.xfce.ristretto.desktop",
         "galculator.desktop",
         "xfce4-taskmanager.desktop",
+        "slope-store.desktop",
         "slope-settings.desktop",
     ],
     "dock_icon_size": 52,
@@ -293,6 +294,38 @@ def launch(appinfo, uris=None):
 # --------------------------------------------------------------------------
 # Session actions
 # --------------------------------------------------------------------------
+
+_ACTION_NAMES = [
+    (("private", "incognito"), "New Private Window"),
+    (("new-window", "newwindow", "new_window", "window"), "New Window"),
+    (("new-tab", "newtab", "new_tab", "tab"), "New Tab"),
+]
+
+
+def launcher_actions(appinfo):
+    """The .desktop file's own actions ("New Window", "New Private Window",
+    "Compose Message"...) as [(label, callback)], with Mac-style names for
+    the common ones, so browsers' private windows are one click away."""
+    if appinfo is None:
+        return []
+    out = []
+    for a in appinfo.list_actions():
+        low = a.lower()
+        label = appinfo.get_action_name(a) or a
+        rank = 9
+        for i, (keys, nice) in enumerate(_ACTION_NAMES):
+            if any(k in low for k in keys):
+                label, rank = nice, i
+                break
+        if "profile" in low:
+            continue                        # Firefox's profile manager: not for everyday menus
+
+        def run(a=a):
+            appinfo.launch_action(a, Gdk.Display.get_default().get_app_launch_context())
+        out.append((rank, label, run))
+    out.sort(key=lambda t: (t[0] if t[0] != 0 else 1.5, t[1]))  # Window, Private Window, Tab, others
+    return [(label, run) for _r, label, run in out]
+
 
 def open_app(desktop_id, target=None):
     """Start an app through its .desktop file (so it behaves as an app: it

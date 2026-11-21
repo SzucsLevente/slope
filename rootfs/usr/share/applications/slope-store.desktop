@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=App Store
+GenericName=Software
+Comment=Find, install and update apps
+Exec=slope-store %u
+Icon=slope-store
+Categories=System;PackageManager;
+Keywords=software;install;apps;store;update;
+StartupWMClass=slope-store

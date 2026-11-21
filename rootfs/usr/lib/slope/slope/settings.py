@@ -299,6 +299,7 @@ class SettingsWindow(Gtk.Window):
 
         self._add("appearance", "Wallpaper", self._appearance())
         self._add("dock", "Dock & Windows", self._dock())
+        self._add("trackpad", "Trackpad & Mouse", self._trackpad())
         self._add("network", "Wi-Fi & Network", self._network())
         self._add("displays", "Displays", self._displays())
         self._add("clock", "Date & Time", self._clock())
@@ -407,6 +408,107 @@ class SettingsWindow(Gtk.Window):
                         "<b>Quit</b> (⌘Q) to really close the app.</small>")
         note.get_style_context().add_class("dim-label")
         v.pack_start(note, False, False, 0)
+        return v
+
+    def _trackpad(self):
+        from . import inputdev
+        cfg = inputdev.load()
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+
+        def save(key, value):
+            cfg[key] = value
+            self._save(key, value)
+            inputdev.apply(cfg)
+
+        def switch(key, label, note=None):
+            sw = Gtk.Switch()
+            sw.set_active(bool(cfg[key]))
+            sw.connect("notify::active", lambda w, p: save(key, w.get_active()))
+            v.pack_start(row(label, sw), False, False, 0)
+            if note:
+                lab = Gtk.Label(xalign=0)
+                lab.set_line_wrap(True)
+                lab.set_markup("<small>%s</small>" % note)
+                lab.get_style_context().add_class("dim-label")
+                v.pack_start(lab, False, False, 0)
+
+        def slider(key, label, lo, hi, step, invert=False, left="Slow", right="Fast"):
+            sc = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
+            sc.set_draw_value(False)
+            sc.set_size_request(260, -1)
+            sc.set_inverted(invert)
+            sc.set_value(cfg[key])
+            sc.add_mark(lo, Gtk.PositionType.BOTTOM, right if invert else left)
+            sc.add_mark(hi, Gtk.PositionType.BOTTOM, left if invert else right)
+            sc.connect("value-changed", lambda w: save(key, round(w.get_value(), 2)
+                                                         if isinstance(step, float) else int(w.get_value())))
+            v.pack_start(row(label, sc), False, False, 0)
+
+        def combo(key, label, options):
+            cb = Gtk.ComboBoxText()
+            for oid, text in options:
+                cb.append(oid, text)
+            cb.set_active_id(cfg[key])
+            cb.connect("changed", lambda w: save(key, w.get_active_id()))
+            v.pack_start(row(label, cb), False, False, 0)
+
+        v.pack_start(heading("Trackpad"), False, False, 0)
+        if not inputdev.has_touchpad():
+            lab = Gtk.Label(xalign=0)
+            lab.set_line_wrap(True)
+            lab.set_markup("<small>No trackpad is connected right now. These settings are used as "
+                           "soon as one is.</small>")
+            lab.get_style_context().add_class("dim-label")
+            v.pack_start(lab, False, False, 0)
+        switch("tp_natural", "Natural scrolling",
+               "On: the content moves with your fingers, like on a Mac or a phone (swipe up to "
+               "scroll down). Off: two-finger scrolling works like a mouse wheel.")
+        switch("tp_tap", "Tap to click")
+        combo("tp_click", "Secondary click", [("clickfinger", "Click with two fingers"),
+                                              ("areas", "Click in the bottom-right corner")])
+        combo("tp_scroll", "Scroll with", [("twofinger", "Two fingers"), ("edge", "The right edge")])
+        slider("tp_speed", "Tracking speed", -1.0, 1.0, 0.05)
+        slider("tp_scroll_speed", "Scrolling speed", 5, 50, 1, invert=True)
+        switch("tp_dwt", "Ignore the trackpad while typing")
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
+        v.pack_start(heading("Gestures"), False, False, 0)
+        grid = Gtk.Grid(column_spacing=16, row_spacing=8)
+        labels = [(k, l) for k, l in inputdev.ACTIONS.items()]
+        for i, (g, text) in enumerate(inputdev.GESTURES):
+            lab = Gtk.Label(label=text, xalign=0)
+            lab.set_hexpand(True)
+            cb = Gtk.ComboBoxText()
+            for aid, (alabel, _cmd) in labels:
+                cb.append(aid, alabel)
+            current = cfg["gestures"].get(g, "none")
+            if current.startswith("cmd:"):
+                cb.append(current, "Command: " + current[4:])
+            cb.set_active_id(current)
+            if cb.get_active_id() is None:
+                cb.set_active_id("none")
+
+            def changed(w, g=g):
+                gestures = dict(cfg["gestures"])
+                gestures[g] = w.get_active_id()
+                save("gestures", gestures)
+            cb.connect("changed", changed)
+            grid.attach(lab, 0, i, 1, 1)
+            grid.attach(cb, 1, i, 1, 1)
+        v.pack_start(grid, False, False, 0)
+        lab = Gtk.Label(xalign=0)
+        lab.set_line_wrap(True)
+        lab.set_markup("<small>Two fingers always scroll. To run your own command for a gesture, put "
+                       "<tt>\"swipe-up-3\": \"cmd:your command\"</tt> under <tt>\"gestures\"</tt> in "
+                       "<tt>~/.config/slope/settings.json</tt>.</small>")
+        lab.get_style_context().add_class("dim-label")
+        v.pack_start(lab, False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
+        v.pack_start(heading("Mouse"), False, False, 0)
+        switch("mouse_natural", "Natural scrolling",
+               "On: the wheel moves the content like a finger would. Off: the usual wheel direction.")
+        slider("mouse_speed", "Tracking speed", -1.0, 1.0, 0.05)
         return v
 
     def _network(self):

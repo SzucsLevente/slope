@@ -514,6 +514,37 @@ def draw_settings_icon(cr, x, y, s):
     _gloss(cr, x, y, s)
 
 
+def draw_store_icon(cr, x, y, s):
+    """Blue glossy tile with a white shopping bag (Slope Store)."""
+    _glossy_tile(cr, x, y, s, "#6fd0ff", "#1556d8")
+    bx, by, bw, bh = x + s * 0.24, y + s * 0.36, s * 0.52, s * 0.42
+    # handles
+    cr.set_line_width(s * 0.045)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    cr.set_source_rgba(1, 1, 1, 0.95)
+    cr.arc(x + s * 0.5, by + s * 0.02, s * 0.12, math.pi, 2 * math.pi)
+    cr.stroke()
+    # bag body
+    rounded_rect(cr, bx, by, bw, bh, s * 0.06)
+    g = cairo.LinearGradient(0, by, 0, by + bh)
+    g.add_color_stop_rgb(0, 1, 1, 1)
+    g.add_color_stop_rgb(1, 0.82, 0.88, 0.97)
+    cr.set_source(g)
+    cr.fill()
+    # a small blue "A"-like arrow mark on the bag
+    cx, cy = x + s * 0.5, by + bh * 0.55
+    cr.set_line_width(s * 0.05)
+    cr.set_source_rgb(0.12, 0.42, 0.9)
+    cr.move_to(cx - s * 0.09, cy + s * 0.09)
+    cr.line_to(cx, cy - s * 0.1)
+    cr.line_to(cx + s * 0.09, cy + s * 0.09)
+    cr.stroke()
+    cr.move_to(cx - s * 0.05, cy + s * 0.025)
+    cr.line_to(cx + s * 0.05, cy + s * 0.025)
+    cr.stroke()
+    _gloss(cr, x, y, s)
+
+
 def draw_installer_icon(cr, x, y, s):
     """Blue glossy tile with a hard drive and a downward arrow."""
     _glossy_tile(cr, x, y, s, "#7fd8ff", "#1338b8")
@@ -591,6 +622,8 @@ def _cli():
                lambda cr, w, h: draw_wifi_icon(cr, 8, 8, w - 16))
     render_png(os.path.join(out, "settings-256.png"), 256, 256,
                lambda cr, w, h: draw_settings_icon(cr, 8, 8, w - 16))
+    render_png(os.path.join(out, "store-256.png"), 256, 256,
+               lambda cr, w, h: draw_store_icon(cr, 8, 8, w - 16))
 
     def welcome(cr, w, h):
         draw_wallpaper(cr, w, h, "aqua")

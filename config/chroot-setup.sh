@@ -86,6 +86,20 @@ echo "--- glossy Slope icon theme"
 # an apt hook (/etc/apt/apt.conf.d/99slope-icons) does the same after installs
 PYTHONPATH=/usr/lib/slope python3 -m slope.icons --update --popular
 
+echo "--- App Store"
+# the live user may install apps without a password (the installed system asks);
+# Calamares deletes this rule from the installed system
+mkdir -p /etc/polkit-1/rules.d
+cat > /etc/polkit-1/rules.d/49-slope-live.rules <<'EOF2'
+// Slope live session only (removed by the installer)
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.slope.store.") == 0 && subject.user == "slope" &&
+        subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});
+EOF2
+
 echo "--- no snaps, anywhere"
 # snapd and the snap-only "transitional" debs are blocked by
 # /etc/apt/preferences.d/no-snap.pref; make sure nothing of them is left
@@ -157,6 +171,7 @@ systemctl mask wpa_supplicant.service 2>/dev/null || true
 chmod 600 /etc/netplan/*.yaml
 install -Dm644 /usr/share/backgrounds/slope/wifi-256.png /usr/share/icons/hicolor/256x256/apps/slope-wifi.png
 install -Dm644 /usr/share/backgrounds/slope/settings-256.png /usr/share/icons/hicolor/256x256/apps/slope-settings.png
+install -Dm644 /usr/share/backgrounds/slope/store-256.png /usr/share/icons/hicolor/256x256/apps/slope-store.png
 gtk-update-icon-cache -q -f /usr/share/icons/hicolor || true
 
 echo "--- live session"

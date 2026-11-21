@@ -152,6 +152,9 @@ class Shell:
         scr.connect("monitors-changed", lambda *_: GLib.timeout_add(300, self._relayout))
 
         os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
+        # a trackpad or mouse plugged in later gets the Trackpad & Mouse settings too
+        seat = Gdk.Display.get_default().get_default_seat()
+        seat.connect("device-added", lambda *_: GLib.timeout_add(800, self._apply_input))
         self._mon = Gio.File.new_for_path(SETTINGS_PATH).monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, None)
         self._mon.connect("changed", self._settings_changed)
 
@@ -180,6 +183,12 @@ class Shell:
         self.desktop.place()
         self.panel.place()
         self.dock.place()
+        return False
+
+    def _apply_input(self):
+        import threading
+        from . import inputdev
+        threading.Thread(target=inputdev.apply, daemon=True).start()
         return False
 
     def _settings_changed(self, *args):

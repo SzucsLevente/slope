@@ -3,6 +3,16 @@
 mkdir -p "$HOME/.cache" "$HOME/.config/slope"
 /usr/lib/slope/slope-compositor &
 
+# trackpad / mouse settings (scroll direction, tap to click...) and gestures
+slope-ctl input >/dev/null 2>&1
+( while xprop -root >/dev/null 2>&1; do /usr/lib/slope/slope-gestures; sleep 2; done ) &
+
+# asks for your password when an app needs administrator rights (App Store...)
+for agent in /usr/libexec/polkit-mate-authentication-agent-1 \
+             /usr/lib/x86_64-linux-gnu/polkit-mate/polkit-mate-authentication-agent-1; do
+  [ -x "$agent" ] && { "$agent" & break; }
+done
+
 # The shell (desktop, top bar, dock).  Restarted automatically if it ever crashes.
 (
   while xprop -root >/dev/null 2>&1; do

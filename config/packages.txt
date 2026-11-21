@@ -54,6 +54,7 @@ x11-utils
 x11-xkb-utils
 xdotool
 wmctrl
+xinput
 mesa-utils
 libgl1-mesa-dri
 spice-vdagent
@@ -71,6 +72,7 @@ shared-mime-info
 libnotify-bin
 xfce4-notifyd
 at-spi2-core
+mate-polkit
 
 # --- the Slope shell runtime ------------------------------------------------
 python3
@@ -86,6 +88,9 @@ librsvg2-common
 appmenu-gtk3-module
 appmenu-gtk2-module
 libglib2.0-bin
+# Slope Store (app catalogue: Ubuntu's AppStream data, downloaded by apt)
+appstream
+gir1.2-appstream-1.0
 dconf-gsettings-backend
 qt5-gtk-platformtheme
 
