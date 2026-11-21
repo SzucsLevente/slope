@@ -197,17 +197,22 @@ scale slider:hover {
   background-image: radial-gradient(circle at 50% 30%, #ffffff 0%, #e6f4ff 30%, #8cc6ff 65%, #4c9cff 100%);
 }
 
+/* Aqua "barber pole" stripes.  The stripe layer is a seamless 20px tile and the
+   animation moves it by exactly one tile, so the loop never jumps. */
 @keyframes slope-barber {
   from { background-position: 0px 0px, 0px 0px; }
-  to   { background-position: 28px 0px, 0px 0px; }
+  to   { background-position: 20px 0px, 0px 0px; }
 }
 progressbar progress {
   background-image:
-      repeating-linear-gradient(-45deg,
-          rgba(255, 255, 255, 0.35) 0px, rgba(255, 255, 255, 0.35) 7px,
-          rgba(255, 255, 255, 0.0) 7px, rgba(255, 255, 255, 0.0) 14px),
+      linear-gradient(-45deg,
+          rgba(255, 255, 255, 0.35) 25%, rgba(255, 255, 255, 0.0) 25%,
+          rgba(255, 255, 255, 0.0) 50%, rgba(255, 255, 255, 0.35) 50%,
+          rgba(255, 255, 255, 0.35) 75%, rgba(255, 255, 255, 0.0) 75%),
       linear-gradient(to bottom, #c3e3ff, #74b7fb 45%, #2f86f3 50%, #5aaeff 80%, #9fdcff);
-  animation: slope-barber 0.9s linear infinite;
+  background-size: 20px 20px, auto;
+  background-repeat: repeat, no-repeat;
+  animation: slope-barber 0.8s linear infinite;
 }
 progressbar.horizontal trough, progressbar.horizontal progress { min-height: 10px; }
 

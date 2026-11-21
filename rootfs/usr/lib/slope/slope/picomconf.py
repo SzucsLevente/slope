@@ -2,8 +2,9 @@
 
 Windows minimize *into the Dock*, so the animation's target point follows the
 Dock's position (bottom, left or right).  ~/.config/slope/picom.conf is made
-from /usr/share/slope/picom.conf at login and whenever the Dock moves;
-picom reloads it on SIGUSR1.  Light module (no GTK): slope-ctl imports it.
+from /usr/share/slope/picom.conf at login and whenever the Dock moves; then
+picom is stopped and slope-compositor starts it again with the new config (a
+fresh start: reloading in place could leave the Dock black on some drivers).  Light module (no GTK): slope-ctl imports it.
 """
 import json
 import os
@@ -55,4 +56,4 @@ def write(position=None, reload=True):
     except OSError:
         return
     if reload:
-        subprocess.run(["pkill", "-USR1", "-x", "picom"], capture_output=True)
+        subprocess.run(["pkill", "-x", "-u", str(os.getuid()), "picom"], capture_output=True)

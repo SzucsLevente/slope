@@ -277,15 +277,15 @@ set menu_color_normal=white/black
 set menu_color_highlight=black/light-cyan
 
 menuentry "Try Slope" {
-  linux /casper/vmlinuz boot=casper quiet splash noprompt ---
+  linux /casper/vmlinuz boot=casper quiet loglevel=3 splash noprompt ---
   initrd /casper/initrd
 }
 menuentry "Try Slope (safe graphics)" {
-  linux /casper/vmlinuz boot=casper nomodeset quiet splash noprompt ---
+  linux /casper/vmlinuz boot=casper nomodeset quiet loglevel=3 splash noprompt ---
   initrd /casper/initrd
 }
 menuentry "Try Slope (copy to RAM, then remove the USB stick)" {
-  linux /casper/vmlinuz boot=casper toram quiet splash noprompt ---
+  linux /casper/vmlinuz boot=casper toram quiet loglevel=3 splash noprompt ---
   initrd /casper/initrd
 }
 menuentry "Try Slope (verbose boot)" {
