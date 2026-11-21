@@ -8,3 +8,7 @@ GRUB_CMDLINE_LINUX=""
 GRUB_DISABLE_OS_PROBER=false
 GRUB_BACKGROUND="/usr/share/backgrounds/slope/grub.png"
 GRUB_GFXMODE=auto
+# Start Linux in text mode, like the live USB: keeping GRUB's graphics mode
+# gives the kernel a temporary framebuffer that the real GPU driver replaces
+# a moment later, which left a black screen on VirtualBox.
+GRUB_GFXPAYLOAD_LINUX=text
