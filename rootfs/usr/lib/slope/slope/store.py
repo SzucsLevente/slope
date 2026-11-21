@@ -429,6 +429,13 @@ class Operations:
                 for p in op["pkgs"] or ["*"]:
                     self.progress[p] = (msg.get("percent", 0), msg.get("text", ""))
                 self.store.op_changed(op)
+                if op["kind"] == "refresh":
+                    # apps waiting for their turn say what they are waiting for
+                    pct = msg.get("percent", 0)
+                    for waiting in self.queue:
+                        for p in waiting["pkgs"]:
+                            self.progress[p] = (0.0, "Getting the latest software list first (%d%%)" % pct)
+                        self.store.op_changed(waiting)
             elif msg.get("type") == "error":
                 op["error"] = msg.get("text")
             elif msg.get("type") == "done":
