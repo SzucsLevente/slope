@@ -10,7 +10,7 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import open_app, icon_for, spawn  # noqa: E402
+from .common import launcher_actions, open_app, icon_for, spawn  # noqa: E402
 
 TRASH_DIR = os.path.join(GLib.get_user_data_dir(), "Trash", "files")
 
@@ -331,11 +331,11 @@ class Dock(Gtk.Window):
                     menu.append(self._mi(title, lambda win=w: self.apps.show_window(win, self.apps.now(self.get_window()))))
                 menu.append(Gtk.SeparatorMenuItem())
             if g.appinfo is not None:
-                menu.append(self._mi("New Window" if g.running else "Open", lambda: self.apps.launch(g)))
-                for action in g.appinfo.list_actions()[:6]:
-                    label = g.appinfo.get_action_name(action)
-                    menu.append(self._mi(label, lambda a=action: g.appinfo.launch_action(
-                        a, Gdk.Display.get_default().get_app_launch_context())))
+                actions = launcher_actions(g.appinfo)
+                if not any(label == "New Window" for label, _r in actions):
+                    menu.append(self._mi("New Window" if g.running else "Open", lambda: self.apps.launch(g)))
+                for label, run in actions[:6]:
+                    menu.append(self._mi(label, run))
                 menu.append(Gtk.SeparatorMenuItem())
                 opts = Gtk.Menu()
                 keep = Gtk.CheckMenuItem(label="Keep in Dock")

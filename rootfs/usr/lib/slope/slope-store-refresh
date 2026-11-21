@@ -1,0 +1,4 @@
+#!/bin/sh
+# Slope Store: refresh the software lists.  Allowed without a password
+# (polkit action org.slope.store.refresh), like other app stores do.
+exec /usr/lib/slope/slope-store-helper refresh

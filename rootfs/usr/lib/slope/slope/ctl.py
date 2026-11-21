@@ -9,6 +9,11 @@
   hide-app       Super+H: hides all windows of the focused app.
   hide-others    Super+Alt+H
   minimize       Super+M
+  maximize       zoom / unzoom the focused window
+  show-desktop   show the desktop (again: bring the windows back)
+  switch next|previous   switch to the next / previous app window
+  key COMBO      press a key combination, e.g. "alt+Left" (used by gestures)
+  input          apply trackpad, mouse and gesture settings (at login)
 """
 import os
 import sys
@@ -35,9 +40,31 @@ def main(argv=None):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)
         return 0
+    cmd = argv[0]
+    if cmd == "input":
+        from . import inputdev
+        inputdev.apply()
+        return 0
     from .xutil import X11
     x = X11()
-    cmd = argv[0]
+    if cmd == "key" and len(argv) > 1:
+        x.send_keys(argv[1])
+        return 0
+    if cmd == "show-desktop":
+        x.show_desktop(not x.showing_desktop())
+        x.flush()
+        return 0
+    if cmd == "switch":
+        wins = [w for w in x.stacking() if x.is_normal(w) and not x.is_hidden(w)
+                and not x.is_minimized(w) and x.wm_class(w)[1] != "Slope"]
+        if len(wins) > 1:
+            if len(argv) > 1 and argv[1].startswith("prev"):
+                x.lower(wins[-1])           # send the front window to the back
+                x.activate(wins[-2])
+            else:
+                x.activate(wins[0])         # bring the one at the back forward
+        x.flush()
+        return 0
     act = int(argv[1], 0) if len(argv) > 1 else x.active()
     if not act:
         return 0
@@ -85,6 +112,8 @@ def main(argv=None):
                 x.hide(w)
     elif cmd == "minimize":
         x.iconify(act)
+    elif cmd == "maximize":
+        x.toggle_maximized(act)
     else:
         print("unknown command:", cmd, file=sys.stderr)
         return 2

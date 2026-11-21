@@ -1,0 +1,155 @@
+#!/usr/bin/python3 -I
+"""Slope Store's privileged helper.  Runs as root through pkexec.
+
+    slope-store-helper refresh            apt-get update
+    slope-store-helper install PKG...     apt-get install
+    slope-store-helper remove PKG...      apt-get remove (never Slope's own packages)
+    slope-store-helper upgrade            install all updates
+
+Progress goes to stdout as one JSON object per line:
+    {"type": "progress", "percent": 42.0, "text": "Unpacking gimp"}
+    {"type": "done"}   or   {"type": "error", "text": "..."}
+
+Polkit: refresh needs no password (org.slope.store.refresh, through the
+slope-store-refresh wrapper); everything else asks for an administrator
+password (org.slope.store.install).
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+
+CORE = "/usr/share/slope/core-packages.txt"
+PKG_RE = re.compile(r"^[a-z0-9][a-z0-9+.-]{0,99}(:[a-z0-9]+)?$")
+ENV = dict(os.environ, DEBIAN_FRONTEND="noninteractive", LC_ALL="C.UTF-8",
+           PATH="/usr/sbin:/usr/bin:/sbin:/bin")
+APT = ["apt-get", "-y", "-q", "-o", "Dpkg::Options::=--force-confdef",
+       "-o", "Dpkg::Options::=--force-confold", "-o", "APT::Status-Fd=3"]
+
+
+def say(**msg):
+    print(json.dumps(msg), flush=True)
+
+
+def core_packages():
+    keep = set()
+    try:
+        with open(CORE) as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if line:
+                    keep.add(line)
+    except OSError:
+        pass
+    return keep
+
+
+def run_apt(args, weight=(0, 100)):
+    """Run apt-get, turning its status lines into progress messages."""
+    r, w = os.pipe()
+    proc = subprocess.Popen(APT + args, env=ENV, pass_fds=(w,), stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True,
+                            preexec_fn=lambda: os.dup2(w, 3))
+    os.close(w)
+    lo, hi = weight
+    with os.fdopen(r) as status:
+        import threading
+        out = []
+
+        def drain():
+            for line in proc.stdout:
+                out.append(line)
+        t = threading.Thread(target=drain, daemon=True)
+        t.start()
+        for line in status:
+            parts = line.rstrip("\n").split(":", 3)
+            if len(parts) == 4 and parts[0] in ("dlstatus", "pmstatus"):
+                try:
+                    pct = float(parts[2])
+                except ValueError:
+                    continue
+                if parts[0] == "dlstatus":      # downloading: first third
+                    pct = pct / 3.0
+                else:                           # installing: the rest
+                    pct = 33.3 + pct * 2 / 3.0
+                say(type="progress", percent=round(lo + (hi - lo) * pct / 100.0, 1), text=parts[3])
+        proc.wait()
+        t.join(2)
+    if proc.returncode != 0:
+        tail = "".join(out[-12:]).strip()
+        say(type="error", text=tail or "apt-get failed (%d)" % proc.returncode)
+        return False
+    return True
+
+
+def lists_present():
+    d = "/var/lib/apt/lists"
+    try:
+        return any(n.endswith("_Packages") or n.endswith("_Packages.lz4") for n in os.listdir(d))
+    except OSError:
+        return False
+
+
+def refresh(weight=(0, 100)):
+    say(type="progress", percent=weight[0], text="Checking for new software")
+    proc = subprocess.run(["apt-get", "-q", "update"], env=ENV, capture_output=True, text=True)
+    if proc.returncode != 0:
+        say(type="error", text=(proc.stdout + proc.stderr).strip()[-800:])
+        return False
+    say(type="progress", percent=weight[1], text="Software list updated")
+    return True
+
+
+def check_names(pkgs):
+    bad = [p for p in pkgs if not PKG_RE.match(p)]
+    if bad or not pkgs:
+        say(type="error", text="Not a package name: %s" % " ".join(bad or ["(none)"]))
+        return False
+    return True
+
+
+def main(argv):
+    if os.geteuid() != 0:
+        say(type="error", text="slope-store-helper must run as root (through pkexec)")
+        return 1
+    if not argv:
+        say(type="error", text=__doc__)
+        return 2
+    cmd, pkgs = argv[0], argv[1:]
+    ok = False
+    if cmd == "refresh":
+        ok = refresh()
+    elif cmd == "install":
+        if check_names(pkgs):
+            ok = True
+            if not lists_present():
+                ok = refresh((0, 10))
+            ok = ok and run_apt(["install", "--no-install-recommends"] + pkgs,
+                                (10, 100) if not lists_present() else (0, 100))
+    elif cmd == "remove":
+        if check_names(pkgs):
+            sim = subprocess.run(["apt-get", "-s", "remove"] + pkgs, env=ENV,
+                                 capture_output=True, text=True)
+            removing = re.findall(r"^Remv (\S+)", sim.stdout, re.M)
+            core = core_packages()
+            hit = sorted(p for p in removing if p.split(":")[0] in core)
+            if sim.returncode != 0:
+                say(type="error", text=(sim.stdout + sim.stderr).strip()[-800:])
+            elif hit:
+                say(type="error", text="Removing this would also remove parts of Slope itself (%s), "
+                                       "so it was not removed." % ", ".join(hit[:6]))
+            else:
+                ok = run_apt(["remove"] + pkgs)
+    elif cmd == "upgrade":
+        ok = refresh((0, 10)) and run_apt(["--with-new-pkgs", "upgrade"], (10, 100))
+    else:
+        say(type="error", text="unknown command: %s" % cmd)
+        return 2
+    if ok:
+        say(type="done")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

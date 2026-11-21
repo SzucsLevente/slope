@@ -90,6 +90,31 @@ machine.
   gives the real .deb from Mozilla's own repository. Ubuntu has no
   Chromium .deb, so for a Chromium-based browser use Google Chrome's,
   Brave's or Vivaldi's .deb from their websites.
+- **App Store**: in the Dock. Browse about 2,000 apps by category, search,
+  read descriptions and see screenshots, then install with one click (**GET**).
+  It also lists installed apps (Open / Remove) and has an **Updates** tab with
+  **Update All**. Everything is a normal .deb (Ubuntu's archive, plus Firefox and
+  Thunderbird from Mozilla), never a snap. Installing asks for your password
+  once (the live session doesn't ask). The store won't remove packages Slope
+  itself needs. The catalogue is Ubuntu's AppStream data, so the store opens
+  even offline.
+- **Trackpad & Mouse** settings (System Settings): natural scrolling (on by
+  default, like a Mac; turn it off for wheel-style two-finger scrolling), tap to
+  click, two-finger or corner secondary click, two-finger or edge scrolling,
+  tracking and scrolling speed, ignore-while-typing, and separate mouse
+  settings. Applied at login and whenever a device is plugged in.
+- **Trackpad gestures**, each one customizable in System Settings → Trackpad &
+  Mouse: three- and four-finger swipes, and pinch / spread. Defaults: swipe up
+  with three fingers = Launchpad, down = Show Desktop, left/right = Back/Forward,
+  four fingers up = Spotlight, left/right = switch apps, four-finger pinch =
+  Launchpad. Actions include Spotlight, Show Desktop, switch apps, back/forward,
+  tabs, zoom, minimize/zoom/close window, hide/quit app, volume or any command.
+  Slope's own small daemon (`packages/gestures/`) reads the X server's
+  touchpad gestures (XInput 2.4).
+- **New Private Window from the top bar**: browsers' "New Window" / "New Private
+  Window" (and other apps' launcher actions) are in the app menu, in the File
+  menu for apps without their own menus (like Firefox), and in the Dock's
+  right-click menu. They work even when the browser has no window open.
 - **Spotlight** (Super+Space): search apps, files and settings, and do quick
   maths (`12*7+3`).
 - **System Settings**: wallpapers, Dock size, magnification and style, display
@@ -209,6 +234,9 @@ rootfs/                   files copied into the image
     launchpad.py          Launchpad (all apps grid)
     wifi.py, iwd.py       Wi-Fi app and iwd D-Bus client + password agent
     settings.py           System Settings, About This Computer, Force Quit
+    store.py              App Store (AppStream catalogue, installs via slope-store-helper)
+    inputdev.py           trackpad / mouse settings (xinput) and gestures.conf
+    keepalive.py          apps that keep running with no windows
     art.py                procedural wallpapers, logo, gel drawing
   usr/share/themes/Slope/ GTK 3 theme (gtk.css) + Openbox theme (traffic lights)
   usr/share/slope/        Openbox config, picom config, xsettings, shell CSS
@@ -216,6 +244,7 @@ rootfs/etc/calamares/     installer configuration and branding
 packages/openbox/         patches: full-colour PNG title-bar buttons, and a frame
                           on every app even if it asks for none
 packages/keepalive/       libslope-keepalive.so: GTK apps keep running with no windows
+packages/gestures/        slope-gestures: trackpad gesture daemon (XInput 2.4)
 tools/gen-xbm.py          regenerates the fallback (single-colour) button bitmaps
 tools/run-qemu.sh         boots the ISO in QEMU
 ```

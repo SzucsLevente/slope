@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Slope</vendor>
+  <action id="org.slope.store.install">
+    <description>Install, update or remove software</description>
+    <message>Slope Store wants to change the software on this computer.</message>
+    <icon_name>slope-store</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/slope/slope-store-helper</annotate>
+  </action>
+  <action id="org.slope.store.refresh">
+    <description>Check for new software</description>
+    <message>Slope Store wants to refresh the list of available software.</message>
+    <icon_name>slope-store</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/slope/slope-store-refresh</annotate>
+  </action>
+</policyconfig>
