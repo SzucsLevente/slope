@@ -1,27 +1,51 @@
 #!/bin/sh
-# Run picom for the whole session, and start it again if it ever stops
-# (without a compositor the Dock and menus would get black backgrounds).
+# Run picom for the whole session, and start it again if it ever stops.
 #
-# Real GPUs get the GLX backend with frosted-glass blur.  Software rendering
-# and virtual machines (VirtualBox / VMware "SVGA3D", llvmpipe), whose OpenGL
-# is often unreliable with transparent windows, get the XRender backend.
-# If GLX keeps failing, we switch to XRender for the rest of the session.
+# System Settings > Dock > Visual effects ("compositor" in settings.json):
+#   auto     real GPUs get the GLX backend with frosted-glass blur; software
+#            rendering and virtual machines (VirtualBox / VMware "SVGA3D",
+#            llvmpipe), whose OpenGL is often unreliable with transparent
+#            windows, get XRender.  If GLX keeps failing, XRender is used for
+#            the rest of the session.
+#   glx      always GLX
+#   xrender  always XRender (no blur)
+#   off      no compositor (the Dock then cuts its window to its own shape)
 #
-# Moving the Dock writes a new ~/.config/slope/picom.conf and stops picom;
-# this loop starts it again with the new config.
+# Moving the Dock or changing the setting stops picom; this loop starts it
+# again with the new config.
 mkdir -p "$HOME/.cache"
 LOG="$HOME/.cache/slope-picom.log"
+SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/slope/settings.json"
 
 RENDERER=$(glxinfo -B 2>/dev/null | grep -i "renderer string")
 case "$RENDERER" in
-  *llvmpipe*|*softpipe*|*SWR*|*SVGA3D*|*VMware*|*VirtualBox*|*virgl*|"") BACKEND=xrender ;;
-  *) BACKEND=glx ;;
+  *llvmpipe*|*softpipe*|*SWR*|*SVGA3D*|*VMware*|*VirtualBox*|*virgl*|"") AUTO=xrender ;;
+  *) AUTO=glx ;;
 esac
-[ -n "$SLOPE_PICOM_BACKEND" ] && BACKEND="$SLOPE_PICOM_BACKEND"
-echo "$(date '+%F %T') renderer: ${RENDERER:-unknown} -> $BACKEND" >>"$LOG"
+[ -n "$SLOPE_PICOM_BACKEND" ] && AUTO="$SLOPE_PICOM_BACKEND"
+echo "$(date '+%F %T') renderer: ${RENDERER:-unknown} -> $AUTO" >>"$LOG"
+
+mode() {
+  m=$(sed -n 's/.*"compositor" *: *"\([a-z]*\)".*/\1/p' "$SETTINGS" 2>/dev/null | head -n 1)
+  case "$m" in glx|xrender|off) echo "$m" ;; *) echo auto ;; esac
+}
 
 quick_fails=0
+last_mode=
 while xprop -root >/dev/null 2>&1; do
+  MODE=$(mode)
+  if [ "$MODE" != "$last_mode" ]; then
+    echo "$(date '+%F %T') visual effects: $MODE" >>"$LOG"
+    last_mode=$MODE
+    quick_fails=0
+  fi
+  if [ "$MODE" = off ]; then
+    sleep 2
+    continue
+  fi
+  BACKEND=$AUTO
+  [ "$MODE" = auto ] || BACKEND=$MODE
+
   CONF=/usr/share/slope/picom.conf
   [ -f "$HOME/.config/slope/picom.conf" ] && CONF="$HOME/.config/slope/picom.conf"
   start=$(date +%s)
@@ -30,7 +54,7 @@ while xprop -root >/dev/null 2>&1; do
   status=$?
   xprop -root >/dev/null 2>&1 || break           # the session is over
   if [ $status -eq 143 ]; then
-    # stopped on purpose (SIGTERM: the Dock moved): start again right away
+    # stopped on purpose (SIGTERM: the Dock moved or the setting changed)
     echo "$(date '+%F %T') picom restarted with the new settings" >>"$LOG"
     continue
   fi
@@ -40,10 +64,10 @@ while xprop -root >/dev/null 2>&1; do
     quick_fails=0
   fi
   echo "$(date '+%F %T') picom stopped (status $status), starting it again" >>"$LOG"
-  if [ "$BACKEND" = glx ] && [ $quick_fails -ge 2 ]; then
+  if [ "$MODE" = auto ] && [ "$AUTO" = glx ] && [ $quick_fails -ge 2 ]; then
     echo "$(date '+%F %T') glx keeps failing: using xrender" >>"$LOG"
-    BACKEND=xrender
+    AUTO=xrender
     quick_fails=0
   fi
-  [ $quick_fails -ge 5 ] && sleep 10 || sleep 0.5
+  if [ $quick_fails -ge 5 ]; then sleep 10; else sleep 0.5; fi
 done

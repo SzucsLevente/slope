@@ -1,6 +1,7 @@
 """slope-shell: desktop background, top bar and dock in one process."""
 import os
 import signal
+import subprocess
 import sys
 
 import cairo
@@ -169,6 +170,7 @@ class Shell:
         new = load_settings()
         wallpaper_changed = new.get("wallpaper") != self.settings.get("wallpaper")
         dock_moved = new.get("dock_position", "bottom") != self.settings.get("dock_position", "bottom")
+        fx_changed = new.get("compositor", "auto") != self.settings.get("compositor", "auto")
         self.settings.clear()
         self.settings.update(new)
         if wallpaper_changed:
@@ -180,6 +182,9 @@ class Shell:
             # windows minimize towards the Dock: update the compositor too
             from . import picomconf
             picomconf.write(new.get("dock_position", "bottom"))
+        if fx_changed and not dock_moved:
+            # slope-compositor starts picom again in the new mode (or not at all)
+            subprocess.run(["pkill", "-x", "-u", str(os.getuid()), "picom"], capture_output=True)
         self.panel._tick()
 
     # -- newly installed apps --------------------------------------------

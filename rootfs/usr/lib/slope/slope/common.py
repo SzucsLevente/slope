@@ -41,6 +41,7 @@ DEFAULTS = {
     "clock_show_date": True,
     "clock_seconds": False,
     "close_hides_app": True,        # the macOS behaviour: red X keeps the app alive
+    "compositor": "auto",           # "auto", "glx", "xrender" or "off" (slope-compositor)
 }
 
 # Friendlier, macOS-style names for the bundled apps.
