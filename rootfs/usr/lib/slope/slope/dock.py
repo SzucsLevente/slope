@@ -59,6 +59,14 @@ class Dock(Gtk.Window):
         self.connect("button-press-event", self._press)
         self.connect("button-release-event", self._release)
         self.connect("realize", lambda *_: self._update_input_shape())
+        # Without a working compositor the transparent parts of the Dock window
+        # would show up as a black (or smeared) block over the apps behind it:
+        # then the window is cut to the shape of what it draws.
+        self._shape_rects = []
+        self._shape_key = None
+        self._shape_idle = None
+        self._composited = self.get_screen().is_composited()
+        self.get_screen().connect("composited-changed", lambda *_: self.configure())
         Gtk.IconTheme.get_default().connect("changed", lambda *_: (self.icons.clear(), self.queue_draw()))
 
         self.slots = []
@@ -83,13 +91,19 @@ class Dock(Gtk.Window):
     # -- configuration ----------------------------------------------------
     def configure(self):
         s = self.shell.settings
+        # Without a compositor nothing can show through the Dock: it becomes a
+        # solid panel cut to its own shape, without magnification.
+        self._composited = self.get_screen().is_composited()
         self.S = int(max(24, min(128, s.get("dock_icon_size", 52))))
-        self.M = int(max(self.S, min(160, s.get("dock_magnify_size", 88)))) if s.get("dock_magnify", True) else self.S
+        magnify = s.get("dock_magnify", True) and self._composited
+        self.M = int(max(self.S, min(160, s.get("dock_magnify_size", 88)))) if magnify else self.S
         self.pos = s.get("dock_position", "bottom")
         if self.pos not in ("bottom", "left", "right"):
             self.pos = "bottom"
         # the 3D shelf only makes sense along the bottom; side Docks are glass panels
         self.style = s.get("dock_style", "shelf") if self.pos == "bottom" else "box"
+        if not self._composited:
+            self.style = "box"
         self.gap = round(self.S * 0.16)
         # room for the name labels: above the icons, or beside them on a side Dock
         self.label_h = 34 if self.pos == "bottom" else 230
@@ -507,6 +521,23 @@ class Dock(Gtk.Window):
         H, S = self.H, self.S
         baseline = H - self.below
         side = S * 0.35
+        # without a compositor: a solid panel, and the window is cut to it
+        # (and to the name label) in _apply_shape()
+        self._shape_rects = []
+        if not self._composited:
+            xl, xr = x0 - side * 0.4, x0 + total + side * 0.4
+            top, bot, r = H - self.below - S - self.pad, H - 4, S * 0.30
+            for u, v, w_, h_ in self._round_strips(xl, top, xr - xl, bot - top, r):
+                self._shape_rects.append(self._dev_rect(u, v, w_, h_))
+            cr.save()
+            cr.transform(self._matrix())
+            art.rounded_rect(cr, xl, top, xr - xl, bot - top, r)
+            g = cairo.LinearGradient(0, top, 0, bot)
+            g.add_color_stop_rgb(0, 0.93, 0.95, 0.98)
+            g.add_color_stop_rgb(1, 0.76, 0.81, 0.89)
+            cr.set_source(g)
+            cr.fill()
+            cr.restore()
 
         cr.save()
         cr.transform(self._matrix())
@@ -588,7 +619,48 @@ class Dock(Gtk.Window):
                     ex, cy = self._dev(sl.x + sl.width / 2.0, baseline - sl.size - 10)
                     self._label_side(cr, ex, cy, name)
                 cr.pop_group_to_source()
-                cr.paint_with_alpha(self._label_alpha())
+                cr.paint_with_alpha(self._label_alpha() if self._composited else 1.0)
+        self._queue_shape()
+        return False
+
+    @staticmethod
+    def _round_strips(x, y, w, h, r):
+        """A rounded rectangle as thin horizontal rectangles (for a window shape)."""
+        r = min(r, h / 2.0, w / 2.0)
+        out = []
+        step = 2
+        dy = 0
+        while dy < h:
+            e = min(dy + step / 2.0, h - dy - step / 2.0)
+            inset = r - math.sqrt(max(0.0, r * r - (r - e) ** 2)) if e < r else 0.0
+            out.append((x + inset, y + dy, w - 2 * inset, min(step, h - dy)))
+            dy += step
+        return out
+
+    def _queue_shape(self):
+        if self._shape_idle is None:
+            self._shape_idle = GLib.idle_add(self._apply_shape)
+
+    def _apply_shape(self):
+        """Cut the window to what it painted when nothing composites it."""
+        self._shape_idle = None
+        if self.get_window() is None:
+            return False
+        if self.get_screen().is_composited():
+            key = None
+        else:
+            key = tuple((int(round(x)), int(round(y)), int(round(w)), int(round(h)))
+                        for x, y, w, h in self._shape_rects)
+        if key == self._shape_key:
+            return False
+        self._shape_key = key
+        if key is None:
+            self.shape_combine_region(None)
+        else:
+            region = cairo.Region()
+            for x, y, w, h in key:
+                region.union(cairo.RectangleInt(x, y, max(1, w), max(1, h)))
+            self.shape_combine_region(region)
         return False
 
     def _shelf(self, cr, xl, xr):
@@ -715,6 +787,7 @@ class Dock(Gtk.Window):
         w, h = tw + 22, th + 10
         x = edge_x if self.pos == "left" else edge_x - w
         y = cy - h / 2.0
+        self._shape_rects.extend(self._round_strips(x - 0.5, y - 0.5, w + 1, h + 1, h / 2.0 + 0.5))
         self._label_box(cr, x, y, w, h)
         cr.move_to(x + 11, y + 5)
         cr.set_source_rgba(1, 1, 1, 1)
@@ -743,6 +816,7 @@ class Dock(Gtk.Window):
         w, h = tw + 22, th + 10
         x = max(2, min(self.W - w - 2, cx - w / 2.0))
         y = max(2, bottom - h)
+        self._shape_rects.extend(self._round_strips(x - 0.5, y - 0.5, w + 1, h + 1, h / 2.0 + 0.5))
         art.rounded_rect(cr, x, y, w, h, h / 2.0)
         g = cairo.LinearGradient(0, y, 0, y + h)
         g.add_color_stop_rgba(0, 0.30, 0.32, 0.38, 0.88)

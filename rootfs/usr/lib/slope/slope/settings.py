@@ -420,6 +420,21 @@ class SettingsWindow(Gtk.Window):
                         "<b>Quit</b> (⌘Q) to really close the app.</small>")
         note.get_style_context().add_class("dim-label")
         v.pack_start(note, False, False, 0)
+
+        fx = Gtk.ComboBoxText()
+        fx.append("auto", "Automatic")
+        fx.append("glx", "Full (OpenGL, frosted glass)")
+        fx.append("xrender", "Basic (no frosted glass)")
+        fx.append("off", "Off (no transparency or animations)")
+        fx.set_active_id(self.s.get("compositor", "auto"))
+        fx.connect("changed", lambda w: self._save("compositor", w.get_active_id()))
+        v.pack_start(row("Visual effects", fx), False, False, 0)
+        fxnote = Gtk.Label(xalign=0)
+        fxnote.set_line_wrap(True)
+        fxnote.set_markup("<small>If windows, the Dock or menus look wrong (smeared, black or blurry areas), "
+                          "try <b>Basic</b>, or <b>Off</b>.</small>")
+        fxnote.get_style_context().add_class("dim-label")
+        v.pack_start(fxnote, False, False, 0)
         return v
 
     def _trackpad(self):
