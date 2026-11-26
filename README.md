@@ -30,6 +30,23 @@ machine.
   menus (Keep in Dock, Quit, the app's window list…). It can also sit on the
   **left or right** side (System Settings → Dock & Windows → Position on
   screen); windows then minimize towards that side.
+  Drag an icon sideways to change the order, or up and away to remove it.
+- **Dark mode**: System Settings → Appearance, or the Dark Mode switch in the
+  top bar's Display menu. Apps, window title bars, menus and the top bar switch
+  at once (GTK 3 and 4 apps, Firefox, Qt apps, Terminal).
+- **Full screen** like on a Mac: the green button (or ⌃⌘F). Rest the pointer at
+  the top of the screen to get the window's buttons and **Exit Full Screen**.
+  Double-click the title bar (or ⌘↑) to zoom instead.
+- **Brightness** slider in the top bar's Display menu and in System Settings,
+  plus the brightness keys (and a MacBook's keyboard backlight keys).
+- **Keyboard** settings: any layout and variant (several at once, switched
+  with ⌃Space), Mac keyboard fixes (both ⌥ Option keys as AltGr, swap the key
+  above Tab with the one left of Z), an optional Compose key, and the same
+  layout on the login screen.
+- **.deb packages**: open a downloaded `.deb` and the Package Installer
+  installs it with its dependencies (asks for your password).
+- The screen resolution you pick in System Settings → Displays is kept across
+  logins.
 - **Files**: Slope's own Mac OS X style file manager. It has:
   - a sidebar with Favorites, Devices (with Eject) and Colors
   - Icons, List and Columns views (Columns has a preview), with a zoom slider
