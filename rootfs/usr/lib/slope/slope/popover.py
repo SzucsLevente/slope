@@ -11,7 +11,7 @@ import cairo
 from gi.repository import Gdk, GLib, Gtk
 
 from . import art
-from .common import dark_theme
+from .common import animate, cancel_animation, dark_theme
 
 SHADOW = 14     # transparent margin around the glass for the drop shadow
 RADIUS = 12
@@ -62,17 +62,14 @@ class Popover(Gtk.Window):
         x = max(geo.x - SHADOW + 4, min(geo.x + geo.width - w + SHADOW - 4, x))
         self.move(x, int(top - SHADOW + 4))
         self.resize(w, h)
+        cancel_animation(getattr(self, "_anim", None))
+        self._closing = False
         self.set_opacity(0.0)
         self.show_all()
         self.present()
         self.opened_at = GLib.get_monotonic_time()
-        GLib.timeout_add(16, self._fade_in)
+        self._anim = animate(self, 0.14, self.set_opacity)
         GLib.idle_add(self._grab)
-
-    def _fade_in(self):
-        o = min(1.0, self.get_opacity() + 0.25)
-        self.set_opacity(o)
-        return o < 1.0
 
     def _grab(self):
         gw = self.get_window()
@@ -89,10 +86,22 @@ class Popover(Gtk.Window):
         if self._seat is not None:
             self._seat.ungrab()
             self._seat = None
-        self.hide()
+        if not self.get_visible():
+            return
+        # a quick fade out, then hide
+        if getattr(self, "_closing", False):
+            return
+        cancel_animation(getattr(self, "_anim", None))
+        start = self.get_opacity()
+        self._closing = True
+
+        def gone():
+            self._closing = False
+            self.hide()
+        self._anim = animate(self, 0.11, lambda p: self.set_opacity(start * (1 - p)), gone, ease="in")
 
     def toggle(self, anchor_x, top):
-        if self.get_visible():
+        if self.get_visible() and not getattr(self, "_closing", False):
             self.dismiss()
         else:
             self.popup(anchor_x, top)

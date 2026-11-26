@@ -16,7 +16,7 @@ TRASH_DIR = os.path.join(GLib.get_user_data_dir(), "Trash", "files")
 
 
 class Slot:
-    __slots__ = ("kind", "group", "x", "size", "width", "grow", "target")
+    __slots__ = ("kind", "group", "x", "size", "width", "grow", "target", "shift", "vshift")
 
     def __init__(self, kind, group=None, grow=1.0):
         self.kind = kind        # "app", "sep", "trash", "launchpad"
@@ -26,6 +26,10 @@ class Slot:
         self.width = 0.0
         self.grow = grow        # 0..1: icons pop in when apps start, shrink away when they quit
         self.target = 1.0
+        # where the icon is drawn, relative to its place in the row: when the
+        # order changes (dragging) icons glide over instead of jumping
+        self.shift = 0.0
+        self.vshift = 0.0
 
     @property
     def key(self):
@@ -264,24 +268,50 @@ class Dock(Gtk.Window):
 
     # -- animation ----------------------------------------------------------
     def _kick(self):
+        # runs on the window's frame clock: one step per screen refresh,
+        # eased by the real time that passed (smooth at any frame rate)
         if self._anim_id is None:
-            self._anim_id = GLib.timeout_add(16, self._anim)
+            self._anim_t = None
+            self._anim_id = self.add_tick_callback(self._tick)
 
-    def _anim(self):
+    def _tick(self, _w, clock):
+        t = clock.get_frame_time() / 1e6
+        dt = 1 / 60.0 if self._anim_t is None else max(0.001, min(0.05, t - self._anim_t))
+        self._anim_t = t
+        if self._anim(dt):
+            return True
+        self._anim_id = None
+        return False
+
+    @staticmethod
+    def _ease(dt, tau):
+        """Share of the remaining distance to cover in dt (exponential ease-out)."""
+        return 1.0 - math.exp(-dt / tau)
+
+    def _anim(self, dt=1 / 60.0):
         target = 1.0 if self.hover else 0.0
-        self.mag += (target - self.mag) * 0.3
-        if abs(target - self.mag) < 0.01:
+        self.mag += (target - self.mag) * self._ease(dt, 0.055)
+        if abs(target - self.mag) < 0.005:
             self.mag = target
         now = time.monotonic()
         for k, (start, settle) in list(self.bounces.items()):
             if now - start > 8 or (settle and now >= settle):
                 del self.bounces[k]
         growing = False
+        k_grow = self._ease(dt, 0.075)
+        k_shift = self._ease(dt, 0.085)
         for sl in self.slots:
             if sl.grow != sl.target:
-                sl.grow += (sl.target - sl.grow) * 0.22
-                if abs(sl.grow - sl.target) < 0.01:
+                sl.grow += (sl.target - sl.grow) * k_grow
+                if abs(sl.grow - sl.target) < 0.005:
                     sl.grow = sl.target
+                else:
+                    growing = True
+            if sl.shift or sl.vshift:
+                sl.shift -= sl.shift * k_shift
+                sl.vshift -= sl.vshift * k_shift
+                if abs(sl.shift) < 0.25 and abs(sl.vshift) < 0.25:
+                    sl.shift = sl.vshift = 0.0
                 else:
                     growing = True
         if any(sl.target == 0 and sl.grow == 0 for sl in self.slots):
@@ -290,7 +320,6 @@ class Dock(Gtk.Window):
         fading = self.hover and self._label_alpha() < 1.0
         self.queue_draw()
         if self.mag == target and not self.bounces and not growing and not fading:
-            self._anim_id = None
             if not self.hover:
                 self.mouse_x = None
             return False
@@ -413,9 +442,15 @@ class Dock(Gtk.Window):
                     break
             new = others[:idx] + [sl] + others[idx:]
             if new != apps:
+                before = {id(x): x.x for x in self.slots}
                 first = self.slots.index(apps[0])
                 rest = [x for x in self.slots if x not in apps]
                 self.slots = rest[:first] + new + rest[first:]
+                self._layout()
+                for x in self.slots:
+                    if x is not sl and id(x) in before:
+                        x.shift += before[id(x)] - x.x      # start where it was drawn
+                self._kick()
         self.mouse_x = u
         self.queue_draw()
         return True
@@ -425,6 +460,12 @@ class Dock(Gtk.Window):
         self.pressed = None
         sl = d["slot"]
         g = sl.group
+        if not d.get("remove"):
+            # fly from under the pointer into its new place
+            self._layout()
+            sl.shift = (d["u"] - self.S / 2.0) - (sl.x + self.gap / 2.0)
+            sl.vshift = (d["v"] - self.S / 2.0) - (self.H - self.below - sl.size)
+            self._kick()
         if d.get("remove"):
             self.apps.pin(g, False)
         else:
@@ -636,13 +677,13 @@ class Dock(Gtk.Window):
             if pb is None:
                 continue
             size = sl.size
-            ix = sl.x + self.gap / 2.0
-            iy = baseline - size - self._bounce_offset(sl.key)
+            ix = sl.x + self.gap / 2.0 + sl.shift
+            iy = baseline - size - self._bounce_offset(sl.key) + sl.vshift
             if self.drag is not None and self.drag["slot"] is sl:
                 continue            # drawn last, under the pointer
             scale = size / pb.get_width()
-            # reflection on the glass shelf
-            if self.style == "shelf":
+            # reflection on the glass shelf (not while flying back into place)
+            if self.style == "shelf" and abs(sl.vshift) < 1:
                 cr.save()
                 path()
                 cr.clip()

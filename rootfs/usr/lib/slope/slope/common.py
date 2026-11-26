@@ -68,6 +68,43 @@ FRIENDLY_NAMES = {
 SHELL_CLASS = "Slope"
 
 
+def animate(widget, duration, step, done=None, ease="out"):
+    """Call step(p) with p eased from 0 to 1 over duration seconds, once per
+    screen refresh (the widget's frame clock), then done().  Returns a
+    handle for cancel_animation()."""
+    state = {"t0": None, "id": None}
+
+    def tick(_w, clock):
+        now = clock.get_frame_time() / 1e6
+        if state["t0"] is None:
+            state["t0"] = now
+        t = min(1.0, (now - state["t0"]) / duration) if duration > 0 else 1.0
+        if ease == "out":
+            p = 1 - (1 - t) ** 3
+        elif ease == "in":
+            p = t * t * t
+        elif ease == "inout":
+            p = 4 * t ** 3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+        else:
+            p = t
+        step(p)
+        if t < 1.0:
+            return True
+        state["id"] = None
+        if done:
+            done()
+        return False
+    state["id"] = widget.add_tick_callback(tick)
+    state["widget"] = widget
+    return state
+
+
+def cancel_animation(handle):
+    if handle and handle.get("id") is not None:
+        handle["widget"].remove_tick_callback(handle["id"])
+        handle["id"] = None
+
+
 def dark_theme():
     """True while the dark appearance (the Slope-Dark GTK theme) is on."""
     name = Gtk.Settings.get_default().get_property("gtk-theme-name") or ""

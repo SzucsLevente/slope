@@ -94,14 +94,15 @@ class Desktop(Gtk.Window):
             return
         self._old, self._fade = old, 0.0
 
-        def step():
-            self._fade = min(1.0, self._fade + 0.06)
+        def step(p):
+            self._fade = p
             self.queue_draw()
-            if self._fade >= 1.0:
-                self._old = None
-                return False
-            return True
-        GLib.timeout_add(16, step)
+
+        def done():
+            self._old = None
+            self.queue_draw()
+        from .common import animate
+        animate(self, 0.55, step, done, ease="inout")
 
     def _press(self, w, ev):
         self.shell.panel.dismiss_popovers()

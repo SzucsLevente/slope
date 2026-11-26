@@ -4,6 +4,12 @@ Open it from the Launchpad icon in the Dock, with F4 or Super+A.  Type to
 search, click an app to open it, right-click for "Keep in Dock".  Esc or a
 click on the background closes it.  Running it again while it is open
 closes it too.
+
+It stays loaded after the first time (the session also starts it with
+--background), so it opens instantly.  Opening and closing are animated on
+the window's frame clock: the frosted copy of the screen fades in while the
+icons settle from a little larger, and closing plays it backwards until the
+window is fully transparent, only then is it hidden.
 """
 import os
 import sys
@@ -111,6 +117,48 @@ def blurred_wallpaper(w, h):
     return big
 
 
+def frosted_screen(geo):
+    """A blurred, slightly darkened copy of what is on the screen now
+    (like macOS Launchpad); the wallpaper when the screen can't be read."""
+    w, h = geo.width, geo.height
+    try:
+        shot = Gdk.pixbuf_get_from_window(Gdk.get_default_root_window(), geo.x, geo.y, w, h)
+    except Exception:
+        shot = None
+    if shot is None:
+        return blurred_wallpaper(w, h)
+    # shrink in two steps (smoother than one big jump), then scale back up
+    mid = shot.scale_simple(max(8, w // 6), max(8, h // 6), GdkPixbuf.InterpType.BILINEAR)
+    small_w, small_h = max(8, w // 28), max(8, h // 28)
+    tiny = mid.scale_simple(small_w, small_h, GdkPixbuf.InterpType.BILINEAR)
+    small = cairo.ImageSurface(cairo.FORMAT_RGB24, small_w, small_h)
+    cr = cairo.Context(small)
+    Gdk.cairo_set_source_pixbuf(cr, tiny, 0, 0)
+    cr.paint()
+    big = cairo.ImageSurface(cairo.FORMAT_RGB24, w, h)
+    c2 = cairo.Context(big)
+    c2.scale(w / float(small_w), h / float(small_h))
+    c2.set_source_surface(small, 0, 0)
+    c2.get_source().set_filter(cairo.FILTER_BILINEAR)
+    c2.get_source().set_extend(cairo.EXTEND_PAD)
+    c2.paint()
+    c2.identity_matrix()
+    g = cairo.LinearGradient(0, 0, 0, h)
+    g.add_color_stop_rgba(0, 0.02, 0.04, 0.12, 0.42)
+    g.add_color_stop_rgba(1, 0.02, 0.04, 0.12, 0.30)
+    c2.set_source(g)
+    c2.paint()
+    return big
+
+
+def ease_out(t):
+    return 1 - (1 - t) ** 3
+
+
+def ease_in(t):
+    return t * t * t
+
+
 class Launchpad(Gtk.Window):
     def __init__(self, app):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
@@ -132,7 +180,12 @@ class Launchpad(Gtk.Window):
         self.geo = mon.get_geometry()
         self.move(self.geo.x, self.geo.y)
         self.set_default_size(self.geo.width, self.geo.height)
-        self.bg = blurred_wallpaper(self.geo.width, self.geo.height)
+        self.bg = None
+        self.shown = False
+        self._closing = False
+        self._anim = None
+        self._dirty = False
+        Gio.AppInfoMonitor.get().connect("changed", lambda *_: setattr(self, "_dirty", True))
 
         self.connect("draw", self._draw)
         self.connect("key-press-event", self._key)
@@ -155,7 +208,7 @@ class Launchpad(Gtk.Window):
         self.search.connect("activate", self._activate_first)
         outer.pack_start(self.search, False, False, 0)
 
-        sw = Gtk.ScrolledWindow()
+        sw = self.scroller = Gtk.ScrolledWindow()
         sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         sw.set_overlay_scrolling(True)
         outer.pack_start(sw, True, True, 0)
@@ -179,16 +232,76 @@ class Launchpad(Gtk.Window):
         outer.pack_start(hint, False, False, 0)
 
         self._populate()
-        self.show_all()
-        self.fullscreen()
-        self.present()
-        self.search.grab_focus()
         self._focused = False
         self.connect("focus-in-event", lambda *_: setattr(self, "_focused", True))
-        self.set_opacity(0.0)
-        self.get_style_context().add_class("zoom")
-        GLib.timeout_add(16, self._fade_in)
-        GLib.timeout_add(40, lambda: self.get_style_context().remove_class("zoom") or False)
+        self.connect("delete-event", lambda *_: (self.close_launchpad(), True)[1])
+
+    # -- open / close ----------------------------------------------------------
+    def toggle(self):
+        if self.shown and not self._closing:
+            self.close_launchpad()
+        else:
+            self.open_launchpad()
+
+    def open_launchpad(self):
+        if self.shown and not self._closing:
+            return
+        if not self.shown:
+            if self._dirty or load_settings().get("new_apps", []) != self.new_apps:
+                for c in self.flow.get_children():
+                    self.flow.remove(c)
+                self._populate()
+                self._dirty = False
+            self.bg = frosted_screen(self.geo)          # before we cover the screen
+            self.search.set_text("")
+            self.flow.unselect_all()
+            self.scroller.get_vadjustment().set_value(0)
+            self.set_opacity(0.0)
+            self.get_style_context().add_class("zoom")
+            self.fullscreen()
+            self.show_all()
+            self.present()
+            self.search.grab_focus()
+            self._focused = False
+            # the icons settle from a little larger while the window fades in
+            GLib.timeout_add(30, lambda: self.get_style_context().remove_class("zoom") or False)
+        self.shown = True
+        self._closing = False
+        self._animate(1.0, 0.26, ease_out)
+
+    def close_launchpad(self):
+        if not self.shown or self._closing:
+            return
+        self._closing = True
+        self.get_style_context().add_class("zoom")     # icons grow and fade away
+
+        def done():
+            # fully transparent before it goes: nothing for the compositor to flash
+            self.hide()
+            self.shown = False
+            self._closing = False
+        self._animate(0.0, 0.22, ease_in, done)
+
+    def _animate(self, target, duration, curve, done=None):
+        """Window opacity to target, on the frame clock (one step per refresh)."""
+        if self._anim is not None:
+            self.remove_tick_callback(self._anim)
+        start_val = self.get_opacity()
+        state = {"t0": None}
+
+        def tick(_w, clock):
+            now = clock.get_frame_time() / 1e6
+            if state["t0"] is None:
+                state["t0"] = now
+            p = min(1.0, (now - state["t0"]) / duration)
+            self.set_opacity(start_val + (target - start_val) * curve(p))
+            if p < 1.0:
+                return True
+            self._anim = None
+            if done:
+                done()
+            return False
+        self._anim = self.add_tick_callback(tick)
 
     # -- content -----------------------------------------------------------
     def _populate(self):
@@ -313,34 +426,19 @@ class Launchpad(Gtk.Window):
             self.close_launchpad()
         return False
 
-    def _fade_in(self):
-        o = min(1.0, self.get_opacity() + 0.2)
-        self.set_opacity(o)
-        return o < 1.0
-
-    def close_launchpad(self):
-        if getattr(self, "_closing", False):
-            return
-        self._closing = True
-
-        def step():
-            o = self.get_opacity() - 0.25
-            if o <= 0:
-                Gtk.main_quit()
-                return False
-            self.set_opacity(o)
-            return True
-        GLib.timeout_add(16, step)
-
     def _draw(self, w, cr):
         cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.set_source_surface(self.bg, 0, 0)
+        if self.bg is not None:
+            cr.set_source_surface(self.bg, 0, 0)
+        else:
+            cr.set_source_rgba(0, 0, 0, 0)
         cr.paint()
         cr.set_operator(cairo.OPERATOR_OVER)
         return False
 
 
 def main():
+    background = "--background" in sys.argv[1:]
     GLib.set_prgname("slope-launchpad")
     app = Gio.Application(application_id="org.slope.Launchpad", flags=Gio.ApplicationFlags.FLAGS_NONE)
     try:
@@ -348,7 +446,8 @@ def main():
     except GLib.Error:
         pass
     if app.get_is_remote():
-        app.activate()          # the open Launchpad closes itself
+        if not background:
+            app.activate()      # opens the loaded Launchpad, or closes it when open
         return 0
     prov = Gtk.CssProvider()
     prov.load_from_data(CSS)
@@ -364,7 +463,9 @@ def main():
         except GLib.Error:
             pass
     win = Launchpad(app)
-    app.connect("activate", lambda *_: win.close_launchpad())
+    app.connect("activate", lambda *_: win.toggle())
+    if not background:
+        win.open_launchpad()
     Gtk.main()
     return 0
 

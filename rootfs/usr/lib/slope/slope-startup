@@ -25,6 +25,9 @@ done
   done
 ) &
 
+# Launchpad stays loaded in the background, so it opens instantly
+(sleep 3; slope-launchpad --background) &
+
 # Welcome window on the very first login
 if grep -q "boot=casper" /proc/cmdline 2>/dev/null; then
   # live USB/DVD: offer to install
