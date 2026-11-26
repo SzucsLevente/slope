@@ -63,10 +63,12 @@ class Dock(Gtk.Window):
         # would show up as a black (or smeared) block over the apps behind it:
         # then the window is cut to the shape of what it draws.
         self._shape_rects = []
-        self._shape_key = None
+        self._shape_key = "again"
         self._shape_idle = None
         self._composited = self.get_screen().is_composited()
         self.get_screen().connect("composited-changed", lambda *_: self.configure())
+        # a resize can drop the window shape: set it again afterwards
+        self.connect("configure-event", lambda *_: (self._reshape(), False)[1])
         Gtk.IconTheme.get_default().connect("changed", lambda *_: (self.icons.clear(), self.queue_draw()))
 
         self.slots = []
@@ -114,6 +116,7 @@ class Dock(Gtk.Window):
             self.pad = round(self.S * 0.14)
             self.below = self.pad + 6
         self.icons.clear()
+        self._shape_key = "again"      # the next drawing sets the shape again
         self.refresh()
 
     def refresh(self):
@@ -637,16 +640,40 @@ class Dock(Gtk.Window):
             dy += step
         return out
 
+    def _x_shape(self, rects):
+        """Set the window's bounding shape (None: no shape) straight through
+        X11: GDK sometimes drops or skips it while the window is resized."""
+        from gi.repository import GdkX11  # noqa: F401  (get_xid)
+        from Xlib import X
+        from Xlib.ext import shape
+        if getattr(self, "_xd", None) is None:
+            from Xlib import display as xdisplay
+            self._xd = xdisplay.Display()
+        xw = self._xd.create_resource_object("window", self.get_window().get_xid())
+        if rects is None:
+            xw.shape_mask(shape.SO.Set, shape.SK.Bounding, 0, 0, X.NONE)
+        else:
+            xw.shape_rectangles(shape.SO.Set, shape.SK.Bounding, X.Unsorted, 0, 0,
+                                [(x, y, max(1, w), max(1, h)) for x, y, w, h in rects])
+        self._xd.flush()
+
+    def _reshape(self):
+        self._shape_key = "again"
+        self._queue_shape()
+
     def _queue_shape(self):
         if self._shape_idle is None:
             self._shape_idle = GLib.idle_add(self._apply_shape)
 
-    def _apply_shape(self):
+    def _apply_shape(self, settle=False):
         """Cut the window to what it painted when nothing composites it."""
         self._shape_idle = None
         if self.get_window() is None:
             return False
-        if self.get_screen().is_composited():
+        # use the state the Dock was last drawn for: the compositor can come
+        # and go in between, and an empty shape would hide the Dock for good
+        # (a window with nothing visible never gets redrawn)
+        if self._composited or not self._shape_rects:
             key = None
         else:
             key = tuple((int(round(x)), int(round(y)), int(round(w)), int(round(h)))
@@ -654,13 +681,16 @@ class Dock(Gtk.Window):
         if key == self._shape_key:
             return False
         self._shape_key = key
-        if key is None:
-            self.shape_combine_region(None)
-        else:
-            region = cairo.Region()
-            for x, y, w, h in key:
-                region.union(cairo.RectangleInt(x, y, max(1, w), max(1, h)))
-            self.shape_combine_region(region)
+        self._x_shape(key)
+        # set it once more after things settle (resizes while the compositor
+        # comes or goes)
+        if not settle and getattr(self, "_shape_settle", None) is None:
+            def again():
+                self._shape_settle = None
+                self._shape_key = "again"
+                self._apply_shape(settle=True)
+                return False
+            self._shape_settle = GLib.timeout_add(400, again)
         return False
 
     def _shelf(self, cr, xl, xr):

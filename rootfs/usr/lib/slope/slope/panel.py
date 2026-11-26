@@ -481,6 +481,14 @@ class Panel(Gtk.Window):
                                   "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager",
                                   "org.freedesktop.NetworkManager", None, self._nm_ready)
 
+        # Display: brightness (and dark mode)
+        self.disp_item = Gtk.MenuItem()
+        self.disp_item.add(Gtk.Image.new_from_icon_name("display-brightness-symbolic", Gtk.IconSize.MENU))
+        self.disp_item.set_tooltip_text("Display")
+        self._on_click(self.disp_item, lambda: self._toggle_popover(self.disp_pop, self.disp_item))
+        self.status.append(self.disp_item)
+        self._build_display_popover()
+
         # Volume: a popover (sliders do not work inside GTK menus)
         self.vol_img = Gtk.Image.new_from_icon_name("audio-volume-high-symbolic", Gtk.IconSize.MENU)
         self.vol_item = Gtk.MenuItem()
@@ -592,7 +600,7 @@ class Panel(Gtk.Window):
 
     # -- popovers ---------------------------------------------------------
     def _toggle_popover(self, pop, item):
-        for other in (self.vol_pop, self.clock_pop):
+        for other in (self.vol_pop, self.clock_pop, self.disp_pop):
             if other is not pop and other.get_visible():
                 other.dismiss()
         # allocation is relative to the item's GdkWindow (the menu bar's), not the panel's
@@ -603,9 +611,47 @@ class Panel(Gtk.Window):
         pop.toggle(ox + a.x + a.width / 2, py + PANEL_H)
 
     def dismiss_popovers(self):
-        for pop in (self.vol_pop, self.clock_pop):
+        for pop in (self.vol_pop, self.clock_pop, self.disp_pop):
             if pop.get_visible():
                 pop.dismiss()
+
+    def _build_display_popover(self):
+        from . import display
+        pop = Popover(280)
+        self.disp_pop = pop
+        c = pop.content
+        c.pack_start(popover.heading("Display"), False, False, 0)
+        row = Gtk.Box(spacing=8)
+        row.pack_start(Gtk.Image.new_from_icon_name("display-brightness-symbolic", Gtk.IconSize.MENU), False, False, 0)
+        self.bright_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self.bright_scale.set_draw_value(False)
+        self.bright_scale.set_hexpand(True)
+        self._bright_pending = None
+
+        def changed(scale):
+            # the backlight is set from a short timer, so dragging stays smooth
+            if self._bright_pending is None:
+                self._bright_pending = GLib.timeout_add(60, apply_bright)
+
+        def apply_bright():
+            self._bright_pending = None
+            display.set_brightness(self.bright_scale.get_value())
+            return False
+
+        self._bright_handler = self.bright_scale.connect("value-changed", changed)
+        row.pack_start(self.bright_scale, True, True, 0)
+        c.pack_start(row, False, False, 0)
+        self.dark_row = Gtk.Box()
+        c.pack_start(self.dark_row, False, False, 0)
+        c.pack_start(Gtk.Separator(), False, False, 0)
+        c.pack_start(popover.link_button("Displays Settings…", lambda: (pop.dismiss(), spawn(
+            ["slope-settings", "--page", "displays"]))), False, False, 0)
+
+        def refresh():
+            self.bright_scale.handler_block(self._bright_handler)
+            self.bright_scale.set_value(display.get_brightness())
+            self.bright_scale.handler_unblock(self._bright_handler)
+        pop.on_show = refresh
 
     def _build_volume_popover(self):
         pop = Popover(280)

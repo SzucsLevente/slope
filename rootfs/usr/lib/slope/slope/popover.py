@@ -5,6 +5,8 @@ pointer grab, so dragging a slider does nothing).  A popover is a small
 override-redirect window with its own pointer grab: clicks inside go to its
 widgets, a click anywhere else (or Esc) closes it.
 """
+import math
+
 import cairo
 from gi.repository import Gdk, GLib, Gtk
 
@@ -121,6 +123,7 @@ class Popover(Gtk.Window):
     # -- drawing ------------------------------------------------------------
     def _draw(self, w, cr):
         a = self.get_allocation()
+        self._shape(a)
         cr.set_operator(cairo.OPERATOR_SOURCE)
         cr.set_source_rgba(0, 0, 0, 0)
         cr.paint()
@@ -147,6 +150,26 @@ class Popover(Gtk.Window):
         cr.set_source(hg)
         cr.fill()
         return False
+
+
+    def _shape(self, a):
+        """Without a compositor, cut the window to the glass (no black margin)."""
+        key = None
+        if not self.get_screen().is_composited():
+            key = (a.width, a.height)
+        if key == getattr(self, "_shape_key", None):
+            return
+        self._shape_key = key
+        if key is None:
+            self.shape_combine_region(None)
+            return
+        x, y, w, h, r = SHADOW, SHADOW, a.width - 2 * SHADOW, a.height - 2 * SHADOW, RADIUS
+        region = cairo.Region()
+        for dy in range(0, h, 2):
+            e = min(dy + 1, h - dy - 1)
+            inset = r - math.sqrt(max(0.0, r * r - (r - e) ** 2)) if e < r else 0
+            region.union(cairo.RectangleInt(int(x + inset), y + dy, int(w - 2 * inset), min(2, h - dy)))
+        self.shape_combine_region(region)
 
 
 def heading(text):

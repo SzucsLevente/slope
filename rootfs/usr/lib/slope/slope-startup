@@ -6,6 +6,9 @@ slope-ctl picom-config >/dev/null 2>&1   # windows minimize towards the Dock
 
 # trackpad / mouse settings (scroll direction, tap to click...) and gestures
 slope-ctl input >/dev/null 2>&1
+# keyboard layouts (System Settings > Keyboard), displays and brightness
+slope-ctl keyboard >/dev/null 2>&1
+slope-ctl display >/dev/null 2>&1
 ( while xprop -root >/dev/null 2>&1; do /usr/lib/slope/slope-gestures; sleep 2; done ) &
 
 # asks for your password when an app needs administrator rights (App Store...)

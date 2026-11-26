@@ -48,6 +48,44 @@ def wallpaper_thumb(name, w=200, h=112):
     return Gdk.pixbuf_get_from_surface(surf, 0, 0, w, h)
 
 
+def pick_layout(parent):
+    """A searchable list of keyboard layouts; returns [layout, variant] or None."""
+    from . import keyboard
+    dlg = Gtk.Dialog(title="Add Input Source", transient_for=parent, modal=True)
+    dlg.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Add", Gtk.ResponseType.OK)
+    dlg.set_default_size(460, 480)
+    box = dlg.get_content_area()
+    box.set_spacing(8)
+    box.set_border_width(12)
+    search = Gtk.SearchEntry()
+    search.set_placeholder_text("Search, e.g. Hungarian")
+    box.pack_start(search, False, False, 0)
+    store = Gtk.ListStore(str, str, str)       # description, layout, variant
+    for lay, (desc, variants) in sorted(keyboard.catalog().items(), key=lambda kv: kv[1][0].lower()):
+        store.append([desc, lay, ""])
+        for var, vdesc in variants:
+            store.append([vdesc, lay, var])
+    filt = store.filter_new()
+    filt.set_visible_func(lambda m, it, _d: search.get_text().lower() in m[it][0].lower())
+    search.connect("search-changed", lambda *_: filt.refilter())
+    tv = Gtk.TreeView(model=filt)
+    tv.set_headers_visible(False)
+    tv.append_column(Gtk.TreeViewColumn("Layout", Gtk.CellRendererText(), text=0))
+    tv.connect("row-activated", lambda *_: dlg.response(Gtk.ResponseType.OK))
+    sw = Gtk.ScrolledWindow()
+    sw.set_shadow_type(Gtk.ShadowType.IN)
+    sw.add(tv)
+    box.pack_start(sw, True, True, 0)
+    dlg.show_all()
+    result = None
+    if dlg.run() == Gtk.ResponseType.OK:
+        model, it = tv.get_selection().get_selected()
+        if it is not None:
+            result = [model[it][1], model[it][2]]
+    dlg.destroy()
+    return result
+
+
 def heading(text):
     lbl = Gtk.Label(xalign=0)
     lbl.set_markup("<span size='large' weight='bold'>%s</span>" % GLib.markup_escape_text(text))
@@ -303,6 +341,7 @@ class SettingsWindow(Gtk.Window):
         self._add("network", "Wi-Fi & Network", self._network())
         self._add("displays", "Displays", self._displays())
         self._add("clock", "Date & Time", self._clock())
+        self._add("keyboard", "Keyboard", self._keyboard())
         self._add("shortcuts", "Keyboard Shortcuts", self._shortcuts())
         self._add("about", "About", self._about())
         self.connect("destroy", Gtk.main_quit)
@@ -567,37 +606,162 @@ class SettingsWindow(Gtk.Window):
         return v
 
     def _displays(self):
+        from . import display
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        v.pack_start(heading("Brightness"), False, False, 0)
+        bright = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        bright.set_draw_value(False)
+        bright.set_size_request(260, -1)
+        bright.set_value(display.get_brightness())
+        bright.connect("value-changed", lambda w: display.set_brightness(w.get_value()))
+        v.pack_start(row("Screen brightness", bright), False, False, 0)
+        bnote = Gtk.Label(xalign=0)
+        bnote.set_line_wrap(True)
+        bnote.set_markup("<small>The brightness keys (F1 / F2 on a Mac) work too. "
+                         + ("This screen has no backlight control, so it is dimmed in software."
+                            if display.backlight() is None else "") + "</small>")
+        bnote.get_style_context().add_class("dim-label")
+        v.pack_start(bnote, False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Displays"), False, False, 0)
-        out = run_quiet(["xrandr", "-q"])
-        outputs = []
-        cur = None
-        for line in out.splitlines():
-            m = re.match(r"^(\S+) connected", line)
-            if m:
-                cur = {"name": m.group(1), "modes": [], "current": None}
-                outputs.append(cur)
-                continue
-            m = re.match(r"^\s+(\d+x\d+)\s+(.*)$", line)
-            if m and cur is not None:
-                mode = m.group(1)
-                if mode not in cur["modes"]:
-                    cur["modes"].append(mode)
-                if "*" in m.group(2):
-                    cur["current"] = mode
-            elif not line.startswith(" "):
-                cur = None
-        if not outputs:
+        outs = display.outputs()
+        if not outs:
             v.pack_start(Gtk.Label(label="No displays found.", xalign=0), False, False, 0)
-        for o in outputs:
+        for o in outs:
             combo = Gtk.ComboBoxText()
             for mode in o["modes"]:
                 combo.append(mode, mode.replace("x", " × "))
             if o["current"]:
                 combo.set_active_id(o["current"])
-            combo.connect("changed", lambda c, name=o["name"]: spawn(
-                ["xrandr", "--output", name, "--mode", c.get_active_id()]))
+            # saved, so the resolution is set again at the next login
+            combo.connect("changed", lambda c, name=o["name"]: display.set_mode(name, c.get_active_id()))
             v.pack_start(row("Resolution (%s)" % o["name"], combo), False, False, 0)
+        return v
+
+    def _keyboard(self):
+        from . import keyboard
+        cfg = keyboard.load()
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+
+        def save(key, value):
+            cfg[key] = value
+            self._save(key, value)
+            keyboard.apply(cfg)
+
+        v.pack_start(heading("Input Sources"), False, False, 0)
+        lb = Gtk.ListBox()
+        lb.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        frame = Gtk.Frame()
+        frame.add(lb)
+        v.pack_start(frame, False, False, 0)
+
+        def fill():
+            for c in lb.get_children():
+                lb.remove(c)
+            for i, (lay, var) in enumerate(keyboard.layouts(cfg)):
+                r = Gtk.ListBoxRow()
+                hb = Gtk.Box(spacing=8)
+                hb.set_border_width(8)
+                hb.pack_start(Gtk.Label(label=keyboard.describe(lay, var), xalign=0), True, True, 0)
+                if i == 0:
+                    d = Gtk.Label(label="Default")
+                    d.get_style_context().add_class("dim-label")
+                    hb.pack_end(d, False, False, 0)
+                r.add(hb)
+                lb.add(r)
+            lb.show_all()
+
+        def current():
+            return [list(x) for x in keyboard.layouts(cfg)]
+
+        def add(*_):
+            choice = pick_layout(self)
+            if choice:
+                lay = current()
+                if choice not in lay:
+                    lay.append(choice)
+                save("kb_layouts", lay)
+                fill()
+
+        def remove(*_):
+            r = lb.get_selected_row()
+            lay = current()
+            if r is None or len(lay) < 2:
+                return
+            del lay[r.get_index()]
+            save("kb_layouts", lay)
+            fill()
+
+        def make_default(*_):
+            r = lb.get_selected_row()
+            lay = current()
+            if r is None or r.get_index() == 0:
+                return
+            lay.insert(0, lay.pop(r.get_index()))
+            save("kb_layouts", lay)
+            fill()
+
+        bb = Gtk.Box(spacing=6)
+        for label, cb in (("Add…", add), ("Remove", remove), ("Make Default", make_default)):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", cb)
+            bb.pack_start(b, False, False, 0)
+        v.pack_start(bb, False, False, 0)
+        fill()
+
+        sw = Gtk.ComboBoxText()
+        for opt, label in keyboard.SWITCH_CHOICES:
+            sw.append(opt, label)
+        sw.set_active_id(cfg["kb_switch"])
+        sw.connect("changed", lambda w: save("kb_switch", w.get_active_id()))
+        v.pack_start(row("Switch input sources with", sw), False, False, 0)
+
+        test = Gtk.Entry()
+        test.set_placeholder_text("Type here to try the keyboard")
+        v.pack_start(test, False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
+        v.pack_start(heading("Keys"), False, False, 0)
+
+        def switch(key, label, note=None):
+            w = Gtk.Switch()
+            w.set_active(bool(cfg[key]))
+            w.connect("notify::active", lambda w_, p: save(key, w_.get_active()))
+            v.pack_start(row(label, w), False, False, 0)
+            if note:
+                n = Gtk.Label(xalign=0)
+                n.set_line_wrap(True)
+                n.set_markup("<small>%s</small>" % note)
+                n.get_style_context().add_class("dim-label")
+                v.pack_start(n, False, False, 0)
+
+        switch("kb_option_altgr", "Both ⌥ Option keys type special characters",
+               "Like on a Mac. Normally only the right ⌥ Option (AltGr) key does, e.g. "
+               "⌥ V = @ on a Hungarian keyboard.")
+        switch("kb_swap_iso", "Swap the key above Tab and the key left of Z",
+               "For Apple keyboards where these two keys (e.g. <b>0</b> and <b>í</b> on a Hungarian "
+               "keyboard, <b>§</b> and <b>&lt;</b> on others) type each other’s characters.")
+        switch("kb_swap_alt_win", "Use the key next to the space bar as ⌘ Command",
+               "For PC keyboards: swaps Alt and the Windows key, so ⌘ sits where it is on a Mac.")
+        comp = Gtk.ComboBoxText()
+        for opt, label in keyboard.COMPOSE_CHOICES:
+            comp.append(opt, label)
+        comp.set_active_id(cfg["kb_compose"])
+        comp.connect("changed", lambda w: save("kb_compose", w.get_active_id()))
+        v.pack_start(row("Compose key", comp), False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
+        login = Gtk.Button(label="Use on the Login Screen Too…")
+        login.set_halign(Gtk.Align.START)
+        login.connect("clicked", lambda *_: keyboard.save_for_login_screen(cfg))
+        v.pack_start(login, False, False, 0)
+        lnote = Gtk.Label(xalign=0)
+        lnote.set_line_wrap(True)
+        lnote.set_markup("<small>Your settings apply when you log in. This also makes them the "
+                         "computer’s keyboard for the login screen (asks for your password).</small>")
+        lnote.get_style_context().add_class("dim-label")
+        v.pack_start(lnote, False, False, 0)
         return v
 
     def _clock(self):

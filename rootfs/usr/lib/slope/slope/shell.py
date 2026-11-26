@@ -163,7 +163,12 @@ class Shell:
     def _apply_input(self):
         import threading
         from . import inputdev
-        threading.Thread(target=inputdev.apply, daemon=True).start()
+        from . import keyboard
+
+        def go():
+            inputdev.apply()
+            keyboard.apply()        # a keyboard plugged in gets the layouts too
+        threading.Thread(target=go, daemon=True).start()
         return False
 
     def _settings_changed(self, *args):

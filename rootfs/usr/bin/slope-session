@@ -24,7 +24,6 @@ XS=/usr/share/slope/xsettingsd.conf
 xsettingsd -c "$XS" >/dev/null 2>&1 &
 
 xsetroot -cursor_name left_ptr 2>/dev/null || true
-setxkbmap -option compose:ralt 2>/dev/null || true
 
 dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP \
     XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_MODULES UBUNTU_MENUPROXY QT_QPA_PLATFORMTHEME \
