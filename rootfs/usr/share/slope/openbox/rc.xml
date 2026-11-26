@@ -165,7 +165,10 @@
 
     <context name="Maximize">
       <mousebind button="Left" action="Press"><action name="Focus"/><action name="Raise"/><action name="Unshade"/></mousebind>
-      <mousebind button="Left" action="Click"><action name="ToggleMaximize"/></mousebind>
+      <!-- like macOS: the green button makes the window full screen (point at
+           the top of the screen to leave it); double-click the title bar or
+           press Super+Up to zoom -->
+      <mousebind button="Left" action="Click"><action name="ToggleFullscreen"/></mousebind>
       <mousebind button="Middle" action="Click"><action name="ToggleMaximize"><direction>vertical</direction></action></mousebind>
       <mousebind button="Right" action="Click"><action name="ToggleMaximize"><direction>horizontal</direction></action></mousebind>
     </context>

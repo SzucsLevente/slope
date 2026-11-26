@@ -120,6 +120,8 @@ class Shell:
         self.desktop = Desktop(self)
         self.panel = Panel(self)
         self.dock = Dock(self)
+        from .fullscreen import FullscreenBar
+        self.fullscreen_bar = FullscreenBar(self)
 
         scr = Gdk.Screen.get_default()
         scr.connect("size-changed", lambda *_: GLib.timeout_add(300, self._relayout))

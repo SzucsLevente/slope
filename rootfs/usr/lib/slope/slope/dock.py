@@ -77,6 +77,8 @@ class Dock(Gtk.Window):
         self.hover = False
         self.mag = 0.0
         self.pressed = None
+        self.drag = None            # an icon being dragged to a new place
+        self._press_at = None
         self.menu_open = False
         self.bounces = {}
         self._anim_id = None
@@ -324,6 +326,8 @@ class Dock(Gtk.Window):
     # -- events -------------------------------------------------------------
     def _motion(self, w, ev):
         u, v = self._log(ev.x, ev.y)
+        if self._drag_motion(ev, u, v):
+            return True
         top_limit = self.H - self.below - (self.M if self.hover else self.S) - 6
         x0 = (self.W - self.base_width()) / 2 - self.S * 0.5
         x1 = self.W - x0
@@ -349,6 +353,7 @@ class Dock(Gtk.Window):
         self.shell.panel.dismiss_popovers()
         sl = self._slot_at(self._log(ev.x, ev.y)[0])
         self.pressed = sl
+        self._press_at = self._log(ev.x, ev.y) if ev.button == 1 else None
         self.queue_draw()
         if sl is not None and ev.button == 3:
             self._popup_menu(sl, ev)
@@ -356,6 +361,10 @@ class Dock(Gtk.Window):
         return True
 
     def _release(self, w, ev):
+        self._press_at = None
+        if self.drag is not None:
+            self._drag_end(*self._log(ev.x, ev.y))
+            return True
         sl = self._slot_at(self._log(ev.x, ev.y)[0])
         pressed, self.pressed = self.pressed, None
         self.queue_draw()
@@ -374,6 +383,59 @@ class Dock(Gtk.Window):
                 return True
             self.apps.activate_group(g, ts)
         return True
+
+    # -- dragging icons to a new place -------------------------------------------
+    def _drag_motion(self, ev, u, v):
+        if self.drag is None:
+            sl = self.pressed
+            if (self._press_at is None or sl is None or sl.kind != "app"
+                    or not ev.state & Gdk.ModifierType.BUTTON1_MASK):
+                return False
+            pu, pv = self._press_at
+            if abs(u - pu) < 8 and abs(v - pv) < 8:
+                return False
+            self.drag = {"slot": sl, "u": u, "v": v}
+            self.hover = True
+            self._update_input_shape()
+        d = self.drag
+        d["u"], d["v"] = u, v
+        sl = d["slot"]
+        # dragged up and away from the Dock: it will be removed on release
+        d["remove"] = sl.group.pinned and v < self.H - self.below - self.S * 1.9
+        if not d["remove"]:
+            apps = [x for x in self.slots if x.kind == "app" and x.target > 0]
+            others = [x for x in apps if x is not sl]
+            idx = len(others)
+            for i, x in enumerate(others):
+                if u < x.x + x.width / 2.0:
+                    idx = i
+                    break
+            new = others[:idx] + [sl] + others[idx:]
+            if new != apps:
+                first = self.slots.index(apps[0])
+                rest = [x for x in self.slots if x not in apps]
+                self.slots = rest[:first] + new + rest[first:]
+        self.mouse_x = u
+        self.queue_draw()
+        return True
+
+    def _drag_end(self, u, v):
+        d, self.drag = self.drag, None
+        self.pressed = None
+        sl = d["slot"]
+        g = sl.group
+        if d.get("remove"):
+            self.apps.pin(g, False)
+        else:
+            order = []
+            for x in self.slots:
+                if x.kind != "app" or x.group.appinfo is None:
+                    continue
+                # dropping a running app among the others keeps it in the Dock
+                if x.group.pinned or x is sl:
+                    order.append(x.group.appinfo.get_id())
+            self.apps.set_dock_order(order)
+        self.queue_draw()
 
     def _popup_menu(self, sl, ev):
         menu = Gtk.Menu()
@@ -571,6 +633,8 @@ class Dock(Gtk.Window):
             size = sl.size
             ix = sl.x + self.gap / 2.0
             iy = baseline - size - self._bounce_offset(sl.key)
+            if self.drag is not None and self.drag["slot"] is sl:
+                continue            # drawn last, under the pointer
             scale = size / pb.get_width()
             # reflection on the glass shelf
             if self.style == "shelf":
@@ -607,8 +671,35 @@ class Dock(Gtk.Window):
                 self._dot(cr, *self._dev(ix + size / 2.0,
                                          H - (self.shelf_h * 0.28 + 3 if self.style == "shelf" else 4.5)))
 
+        # the icon being dragged follows the pointer (faded: about to be removed)
+        if self.drag is not None:
+            sl = self.drag["slot"]
+            pb = self._icon(sl)
+            if pb is not None:
+                size = self.S
+                dx, dy, _w, _h = self._dev_rect(self.drag["u"] - size / 2.0, self.drag["v"] - size / 2.0,
+                                                size, size)
+                if not self._composited:
+                    self._shape_rects.append((dx, dy, _w, _h))
+                cr.save()
+                cr.translate(dx, dy)
+                cr.scale(size / pb.get_width(), size / pb.get_width())
+                Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
+                cr.get_source().set_filter(cairo.FILTER_GOOD)
+                cr.paint_with_alpha(0.45 if self.drag.get("remove") else 0.9)
+                cr.restore()
+                if self.drag.get("remove"):
+                    cr.push_group()
+                    if self.pos == "bottom":
+                        self._label(cr, self.drag["u"], self.drag["v"] - size / 2.0 - 6, "Remove")
+                    else:
+                        ex, cy = self._dev(self.drag["u"], self.drag["v"] - size / 2.0 - 6)
+                        self._label_side(cr, ex, cy, "Remove")
+                    cr.pop_group_to_source()
+                    cr.paint()
+
         # name label above the hovered icon
-        if self.hover and self.mouse_x is not None and not self.menu_open:
+        if self.hover and self.mouse_x is not None and not self.menu_open and self.drag is None:
             sl = self._slot_at(self.mouse_x)
             if sl is not None:
                 if sl.key != self._label_key:
