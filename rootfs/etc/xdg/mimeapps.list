@@ -1,5 +1,7 @@
 [Default Applications]
 inode/directory=slope-files.desktop
+application/vnd.debian.binary-package=slope-package-installer.desktop
+application/x-deb=slope-package-installer.desktop
 text/plain=org.xfce.mousepad.desktop
 text/x-python=org.xfce.mousepad.desktop
 text/x-shellscript=org.xfce.mousepad.desktop

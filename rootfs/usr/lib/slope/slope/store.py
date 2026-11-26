@@ -1168,8 +1168,185 @@ class Store(Gtk.Window):
         self.tabs["updates"].set_label("Updates (%d)" % n if n else "Updates")
 
 
+def deb_info(path):
+    """Fields of a .deb file (Package, Version, Description...)."""
+    info = {}
+    try:
+        out = subprocess.run(["dpkg-deb", "-f", path], capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.SubprocessError):
+        return info
+    key = None
+    for line in out.splitlines():
+        if line.startswith((" ", "\t")) and key:
+            info[key] += "\n" + line.strip()
+        elif ":" in line:
+            key, val = line.split(":", 1)
+            info[key.strip()] = val.strip()
+    return info
+
+
+def installed_version(pkg):
+    try:
+        r = subprocess.run(["dpkg-query", "-W", "-f", "${Status}\t${Version}", pkg],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    st, _t, ver = r.stdout.partition("\t")
+    return ver if r.returncode == 0 and st.endswith("installed") and "not-installed" not in st else None
+
+
+class DebInstaller(Gtk.Window):
+    """Installs a downloaded .deb file (opened from Files, a browser...)."""
+
+    def __init__(self, path):
+        super().__init__(title="Package Installer")
+        self.set_wmclass("slope-store", "Slope-store")
+        self.set_icon_name("slope-store")
+        self.set_default_size(520, -1)
+        self.set_resizable(False)
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.path = os.path.abspath(path)
+        self.info = deb_info(self.path)
+        self.pkg = self.info.get("Package", "")
+        self.ops = Operations(self)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        outer.set_border_width(24)
+        self.add(outer)
+        top = Gtk.Box(spacing=18)
+        outer.pack_start(top, False, False, 0)
+        img = Gtk.Image.new_from_icon_name("package-x-generic", Gtk.IconSize.DIALOG)
+        img.set_pixel_size(72)
+        top.pack_start(img, False, False, 0)
+        col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        top.pack_start(col, True, True, 0)
+        desc = self.info.get("Description", "")
+        summary, _nl, long_desc = desc.partition("\n")
+        title = Gtk.Label(xalign=0)
+        title.set_markup("<span size='x-large'><b>%s</b></span>" % GLib.markup_escape_text(
+            self.pkg or os.path.basename(self.path)))
+        col.pack_start(title, False, False, 0)
+        sub = Gtk.Label(label=summary or os.path.basename(self.path), xalign=0)
+        sub.set_line_wrap(True)
+        sub.set_max_width_chars(48)
+        col.pack_start(sub, False, False, 0)
+        facts = []
+        if self.info.get("Version"):
+            facts.append("Version %s" % self.info["Version"])
+        if self.info.get("Installed-Size", "").isdigit():
+            kb = int(self.info["Installed-Size"])
+            facts.append("%.1f MB" % (kb / 1024.0) if kb >= 1024 else "%d KB" % kb)
+        if self.info.get("Maintainer"):
+            facts.append(self.info["Maintainer"].split("<")[0].strip())
+        fl = Gtk.Label(label="  ·  ".join(facts), xalign=0)
+        fl.get_style_context().add_class("dim-label")
+        fl.set_line_wrap(True)
+        col.pack_start(fl, False, False, 0)
+        if long_desc.strip():
+            ld = Gtk.Label(label="\n".join(l if l != "." else "" for l in long_desc.splitlines())[:700], xalign=0)
+            ld.set_line_wrap(True)
+            ld.set_max_width_chars(60)
+            outer.pack_start(ld, False, False, 0)
+        warn = Gtk.Label(xalign=0)
+        warn.set_line_wrap(True)
+        warn.set_max_width_chars(60)
+        warn.set_markup("<small>Only install packages from developers you trust: a package can change "
+                        "anything on this computer.</small>")
+        warn.get_style_context().add_class("dim-label")
+        outer.pack_start(warn, False, False, 0)
+        self.bar = Gtk.ProgressBar()
+        self.bar.set_no_show_all(True)
+        outer.pack_start(self.bar, False, False, 0)
+        self.status = Gtk.Label(xalign=0)
+        self.status.set_line_wrap(True)
+        self.status.set_max_width_chars(60)
+        self.status.set_selectable(True)
+        outer.pack_start(self.status, False, False, 0)
+        bb = Gtk.Box(spacing=8)
+        outer.pack_start(bb, False, False, 0)
+        self.close_btn = Gtk.Button(label="Close")
+        self.close_btn.connect("clicked", lambda *_: self.destroy())
+        bb.pack_end(self.close_btn, False, False, 0)
+        self.install_btn = Gtk.Button()
+        self.install_btn.get_style_context().add_class("suggested-action")
+        self.install_btn.connect("clicked", self._install)
+        bb.pack_end(self.install_btn, False, False, 0)
+        self.open_btn = Gtk.Button(label="Open")
+        self.open_btn.set_no_show_all(True)
+        self.open_btn.connect("clicked", self._open)
+        bb.pack_end(self.open_btn, False, False, 0)
+        self.connect("destroy", Gtk.main_quit)
+        self._state()
+        self.show_all()
+
+    def _state(self):
+        if not self.pkg:
+            self.install_btn.set_sensitive(False)
+            self.install_btn.set_label("Install")
+            self.status.set_text("This file is not a valid .deb package.")
+            return
+        have = installed_version(self.pkg)
+        if have and have == self.info.get("Version"):
+            self.install_btn.set_label("Reinstall")
+            self.status.set_text("This version is already installed.")
+        elif have:
+            self.install_btn.set_label("Install Version %s" % self.info.get("Version", ""))
+            self.status.set_text("Version %s is installed now." % have)
+        else:
+            self.install_btn.set_label("Install")
+        self.open_btn.set_visible(bool(have and self._desktop_files()))
+
+    def _desktop_files(self):
+        try:
+            out = subprocess.run(["dpkg-query", "-L", self.pkg], capture_output=True, text=True, timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            return []
+        return [l for l in out.splitlines()
+                if l.startswith("/usr/share/applications/") and l.endswith(".desktop")]
+
+    def _install(self, *_):
+        self.install_btn.set_sensitive(False)
+        self.bar.show()
+        self.bar.set_fraction(0)
+        self.status.set_text("Waiting for your password…")
+        self.ops.add("install-deb", [self.path])
+
+    def _open(self, *_):
+        files = self._desktop_files()
+        if files:
+            from .common import open_app
+            open_app(os.path.basename(files[0]))
+
+    # called by Operations
+    def op_changed(self, op):
+        pct, text = self.ops.progress.get(self.path, (0.0, ""))
+        self.bar.set_fraction(max(0.0, min(1.0, pct / 100.0)))
+        if text:
+            self.status.set_text(text)
+
+    def op_finished(self, op):
+        self.bar.hide()
+        self.install_btn.set_sensitive(True)
+        if op.get("ok"):
+            self._state()
+            self.status.set_markup("<b>%s is installed.</b>" % GLib.markup_escape_text(self.pkg))
+        else:
+            self.status.set_text(op.get("error") or "The package was not installed.")
+
+
 def main(argv=None):
     import sys
+    argv = sys.argv[1:] if argv is None else argv
+    debs = [a for a in argv if a.endswith(".deb") and not a.startswith("-")]
+    if argv[:1] == ["--install-file"] or debs:
+        # opening a .deb file: a Package Installer window of its own
+        path = (argv[1] if argv[:1] == ["--install-file"] and len(argv) > 1 else debs[0])
+        if path.startswith("file://"):
+            path = Gio.File.new_for_uri(path).get_path() or path
+        GLib.set_prgname("slope-store")
+        DebInstaller(path)
+        Gtk.main()
+        return 0
     GLib.set_prgname("slope-store")
     app = Gio.Application(application_id="org.slope.Store", flags=Gio.ApplicationFlags.HANDLES_OPEN)
     try:

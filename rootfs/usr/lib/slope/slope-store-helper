@@ -5,6 +5,7 @@
     slope-store-helper install PKG...     apt-get install
     slope-store-helper remove PKG...      apt-get remove (never Slope's own packages)
     slope-store-helper upgrade            install all updates
+    slope-store-helper install-deb FILE   install a downloaded .deb with its dependencies
 
 Progress goes to stdout as one JSON object per line:
     {"type": "progress", "percent": 42.0, "text": "Unpacking gimp"}
@@ -128,6 +129,52 @@ def check_names(pkgs):
     return True
 
 
+DEB_CACHE = "/var/cache/slope-deb"
+
+
+def install_deb(path):
+    """Install a .deb file the user opened, with the dependencies it needs."""
+    import shutil
+    import tempfile
+    if not (os.path.isabs(path) and path.endswith(".deb") and os.path.isfile(path)):
+        say(type="error", text="Not a .deb package: %s" % path)
+        return False
+    # work on root's own copy (the user's file could change underneath us)
+    os.makedirs(DEB_CACHE, mode=0o755, exist_ok=True)
+    tmpdir = tempfile.mkdtemp(dir=DEB_CACHE)
+    os.chmod(tmpdir, 0o755)
+    copy = os.path.join(tmpdir, "package.deb")
+    try:
+        shutil.copyfile(path, copy)
+        os.chmod(copy, 0o644)
+        info = subprocess.run(["dpkg-deb", "-f", copy, "Package"], env=ENV, capture_output=True, text=True)
+        if info.returncode != 0 or not info.stdout.strip():
+            say(type="error", text="This file is not a valid .deb package.")
+            return False
+        say(type="progress", percent=2, text="Checking what %s needs" % info.stdout.strip())
+        weight = (0, 100)
+        if not lists_present():
+            if not refresh((0, 15)):
+                return False
+            weight = (15, 100)
+        # never let a package push out parts of Slope itself
+        sim = subprocess.run(["apt-get", "-s", "install", copy], env=ENV, capture_output=True, text=True)
+        removing = re.findall(r"^Remv (\S+)", sim.stdout, re.M)
+        hit = sorted(p for p in removing if p.split(":")[0] in core_packages())
+        if hit:
+            say(type="error", text="Installing this would remove parts of Slope itself (%s), "
+                                   "so it was not installed." % ", ".join(hit[:6]))
+            return False
+        if sim.returncode != 0 and lists_present():
+            # dependencies missing from an old software list: get the latest one
+            if not refresh((weight[0], weight[0] + 15)):
+                return False
+            weight = (weight[0] + 15, 100)
+        return run_apt(["install", "--no-install-recommends", copy], weight)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def main(argv):
     if os.geteuid() != 0:
         say(type="error", text="slope-store-helper must run as root (through pkexec)")
@@ -160,6 +207,10 @@ def main(argv):
                                        "so it was not removed." % ", ".join(hit[:6]))
             else:
                 ok = run_apt(["remove"] + pkgs)
+    elif cmd == "install-deb":
+        ok = len(pkgs) == 1 and install_deb(pkgs[0])
+        if len(pkgs) != 1:
+            say(type="error", text="install-deb takes one file")
     elif cmd == "upgrade":
         ok = refresh((0, 10)) and run_apt(["--with-new-pkgs", "upgrade"], (10, 100))
     else:

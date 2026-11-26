@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Package Installer
+Comment=Install a downloaded .deb package
+Exec=slope-store --install-file %f
+Icon=slope-store
+NoDisplay=true
+MimeType=application/vnd.debian.binary-package;application/x-deb;
+StartupWMClass=slope-store
