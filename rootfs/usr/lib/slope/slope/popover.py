@@ -11,6 +11,7 @@ import cairo
 from gi.repository import Gdk, GLib, Gtk
 
 from . import art
+from .common import dark_theme
 
 SHADOW = 14     # transparent margin around the glass for the drop shadow
 RADIUS = 12
@@ -135,17 +136,22 @@ class Popover(Gtk.Window):
                 cr.set_source_rgba(0, 0, 0, 0.018)
                 cr.fill()
         art.rounded_rect(cr, x, y, ww, hh, RADIUS)
+        dark = dark_theme()
         g = cairo.LinearGradient(0, y, 0, y + hh)
-        g.add_color_stop_rgba(0, 0.985, 0.99, 1.0, 0.96)
-        g.add_color_stop_rgba(1, 0.93, 0.945, 0.97, 0.95)
+        if dark:
+            g.add_color_stop_rgba(0, 0.21, 0.21, 0.235, 0.97)
+            g.add_color_stop_rgba(1, 0.165, 0.165, 0.185, 0.97)
+        else:
+            g.add_color_stop_rgba(0, 0.985, 0.99, 1.0, 0.96)
+            g.add_color_stop_rgba(1, 0.93, 0.945, 0.97, 0.95)
         cr.set_source(g)
         cr.fill_preserve()
-        cr.set_source_rgba(0, 0, 0, 0.22)
+        cr.set_source_rgba(0, 0, 0, 0.6 if dark else 0.22)
         cr.set_line_width(1)
         cr.stroke()
         art.rounded_rect(cr, x + 2, y + 1.5, ww - 4, 26, RADIUS - 2)
         hg = cairo.LinearGradient(0, y, 0, y + 28)
-        hg.add_color_stop_rgba(0, 1, 1, 1, 0.9)
+        hg.add_color_stop_rgba(0, 1, 1, 1, 0.1 if dark else 0.9)
         hg.add_color_stop_rgba(1, 1, 1, 1, 0)
         cr.set_source(hg)
         cr.fill()

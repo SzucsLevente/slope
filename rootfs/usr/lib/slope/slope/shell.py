@@ -154,6 +154,13 @@ class Shell:
                 return
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        # dark mode: shell-dark.css on top, while the Slope-Dark theme is on
+        from .common import install_css
+        try:
+            with open(os.path.join(SHARE, "shell-dark.css"), "rb") as f:
+                install_css(b"", f.read())
+        except OSError:
+            pass
 
     def _relayout(self):
         self.desktop.place()

@@ -8,7 +8,7 @@ traffic lights and title, to close it, minimize it or leave full screen.
 import cairo
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Wnck
 
-from .common import spawn
+from .common import dark_theme, spawn
 
 BAR_H = 30
 THEME = "/usr/share/themes/Slope/openbox-3/"
@@ -125,8 +125,12 @@ class FullscreenBar(Gtk.Window):
     def _draw(self, w, cr):
         a = self.get_allocation()
         g = cairo.LinearGradient(0, 0, 0, a.height)
-        g.add_color_stop_rgb(0, 0.97, 0.97, 0.98)
-        g.add_color_stop_rgb(1, 0.86, 0.87, 0.89)
+        if dark_theme():
+            g.add_color_stop_rgb(0, 0.27, 0.27, 0.29)
+            g.add_color_stop_rgb(1, 0.19, 0.19, 0.21)
+        else:
+            g.add_color_stop_rgb(0, 0.97, 0.97, 0.98)
+            g.add_color_stop_rgb(1, 0.86, 0.87, 0.89)
         cr.set_source(g)
         cr.paint()
         cr.set_source_rgba(0, 0, 0, 0.25)

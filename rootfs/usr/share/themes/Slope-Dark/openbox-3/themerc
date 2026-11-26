@@ -1,0 +1,137 @@
+# Slope Dark: graphite title bars (generated from Slope's themerc)
+# Slope — Openbox theme with glossy title bars and traffic-light buttons
+border.width: 1
+padding.width: 9
+padding.height: 6
+window.handle.width: 0
+window.client.padding.width: 0
+window.client.padding.height: 0
+window.label.text.justify: center
+menu.overlap.x: 0
+menu.overlap.y: 0
+menu.separator.width: 1
+menu.separator.padding.width: 6
+menu.separator.padding.height: 3
+
+# ---- active window -------------------------------------------------------
+window.active.border.color: #111113
+window.active.title.separator.color: #19191b
+window.active.client.color: #2c2c2f
+
+window.active.title.bg: Flat Gradient SplitVertical
+window.active.title.bg.color: #45454a
+window.active.title.bg.colorTo: #38383c
+window.active.title.bg.color.splitTo: #505056
+window.active.title.bg.colorTo.splitTo: #303034
+
+window.active.label.bg: Parentrelative
+window.active.label.text.color: #ececf0
+window.active.label.text.font: shadow=y:shadowtint=70:shadowoffset=1
+
+window.active.handle.bg: Flat Solid
+window.active.handle.bg.color: #2c2c2f
+window.active.grip.bg: Flat Solid
+window.active.grip.bg.color: #2c2c2f
+
+window.active.button.unpressed.bg: Parentrelative
+window.active.button.pressed.bg: Parentrelative
+window.active.button.hover.bg: Parentrelative
+window.active.button.disabled.bg: Parentrelative
+window.active.button.toggled.unpressed.bg: Parentrelative
+window.active.button.toggled.pressed.bg: Parentrelative
+window.active.button.toggled.hover.bg: Parentrelative
+
+window.active.button.close.unpressed.image.color: #ff5f57
+window.active.button.close.hover.image.color: #e0443c
+window.active.button.close.pressed.image.color: #b8322b
+window.active.button.iconify.unpressed.image.color: #febc2e
+window.active.button.iconify.hover.image.color: #df9f13
+window.active.button.iconify.pressed.image.color: #b9830e
+window.active.button.max.unpressed.image.color: #28c840
+window.active.button.max.hover.image.color: #1aa52e
+window.active.button.max.pressed.image.color: #138524
+window.active.button.max.toggled.unpressed.image.color: #28c840
+window.active.button.max.toggled.hover.image.color: #1aa52e
+window.active.button.max.toggled.pressed.image.color: #138524
+window.active.button.unpressed.image.color: #8e8e93
+window.active.button.hover.image.color: #5e5e63
+window.active.button.pressed.image.color: #3e3e43
+window.active.button.disabled.image.color: #c8c8c8
+
+# ---- inactive window -----------------------------------------------------
+window.inactive.border.color: #18181a
+window.inactive.title.separator.color: #202022
+window.inactive.client.color: #2c2c2f
+
+window.inactive.title.bg: Flat Gradient Vertical
+window.inactive.title.bg.color: #38383c
+window.inactive.title.bg.colorTo: #2f2f33
+
+window.inactive.label.bg: Parentrelative
+window.inactive.label.text.color: #8a8a90
+
+window.inactive.handle.bg: Flat Solid
+window.inactive.handle.bg.color: #2c2c2f
+window.inactive.grip.bg: Flat Solid
+window.inactive.grip.bg.color: #2c2c2f
+
+window.inactive.button.unpressed.bg: Parentrelative
+window.inactive.button.pressed.bg: Parentrelative
+window.inactive.button.hover.bg: Parentrelative
+window.inactive.button.disabled.bg: Parentrelative
+window.inactive.button.toggled.unpressed.bg: Parentrelative
+window.inactive.button.toggled.pressed.bg: Parentrelative
+window.inactive.button.toggled.hover.bg: Parentrelative
+window.inactive.button.unpressed.image.color: #5a5a60
+window.inactive.button.hover.image.color: #b0b0b3
+window.inactive.button.pressed.image.color: #909093
+window.inactive.button.disabled.image.color: #e0e0e0
+window.inactive.button.close.hover.image.color: #e0443c
+window.inactive.button.iconify.hover.image.color: #df9f13
+window.inactive.button.max.hover.image.color: #1aa52e
+
+# ---- menus (Openbox client menu) ---------------------------------------------
+menu.border.width: 1
+menu.border.color: #19191b
+menu.title.bg: Flat Gradient SplitVertical
+menu.title.bg.color: #45454a
+menu.title.bg.colorTo: #38383c
+menu.title.bg.color.splitTo: #505056
+menu.title.bg.colorTo.splitTo: #303034
+menu.title.text.color: #ececf0
+menu.title.text.justify: center
+menu.items.bg: Flat Solid
+menu.items.bg.color: #2a2a2e
+menu.items.text.color: #ececf0
+menu.items.disabled.text.color: #6a6a70
+menu.items.active.bg: Flat Gradient SplitVertical
+menu.items.active.bg.color: #8cc6ff
+menu.items.active.bg.colorTo: #2f86f3
+menu.items.active.bg.color.splitTo: #b9dcff
+menu.items.active.bg.colorTo.splitTo: #5aaeff
+menu.items.active.text.color: #ffffff
+menu.separator.color: #d4d4d8
+
+# ---- on-screen display (alt-tab, etc.) -----------------------------------
+osd.border.width: 1
+osd.border.color: #b8b8bc
+osd.bg: Flat Gradient Vertical
+osd.bg.color: #fafafa
+osd.bg.colorTo: #e6e6e6
+osd.label.bg: Parentrelative
+osd.label.text.color: #1d1d1f
+osd.hilight.bg: Flat Solid
+osd.hilight.bg.color: #2f86f3
+osd.unhilight.bg: Flat Solid
+osd.unhilight.bg.color: #c8c8cc
+osd.button.unpressed.bg: Flat Solid
+osd.button.unpressed.bg.color: #f6f7fa
+osd.button.unpressed.text.color: #1d1d1f
+osd.button.pressed.bg: Flat Solid
+osd.button.pressed.bg.color: #2f86f3
+osd.button.focused.bg: Flat Gradient SplitVertical
+osd.button.focused.bg.color: #8cc6ff
+osd.button.focused.bg.colorTo: #2f86f3
+osd.button.focused.bg.color.splitTo: #b9dcff
+osd.button.focused.bg.colorTo.splitTo: #5aaeff
+osd.button.focused.text.color: #ffffff

@@ -335,7 +335,7 @@ class SettingsWindow(Gtk.Window):
         hb.pack_start(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL), False, False, 0)
         hb.pack_start(self.stack, True, True, 0)
 
-        self._add("appearance", "Wallpaper", self._appearance())
+        self._add("appearance", "Appearance", self._appearance())
         self._add("dock", "Dock & Windows", self._dock())
         self._add("trackpad", "Trackpad & Mouse", self._trackpad())
         self._add("network", "Wi-Fi & Network", self._network())
@@ -364,7 +364,38 @@ class SettingsWindow(Gtk.Window):
 
     # -- pages -------------------------------------------------------------
     def _appearance(self):
+        from . import appearance
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        v.pack_start(heading("Appearance"), False, False, 0)
+        look = Gtk.Box(spacing=0)
+        look.get_style_context().add_class("linked")
+        light = Gtk.RadioButton.new_with_label(None, "Light")
+        dark = Gtk.RadioButton.new_with_label_from_widget(light, "Dark")
+        for b in (light, dark):
+            b.set_mode(False)           # look like a segmented control
+            b.set_size_request(110, -1)
+            look.pack_start(b, False, False, 0)
+        (dark if self.s.get("dark_mode") else light).set_active(True)
+
+        def toggled(b):
+            if b.get_active():
+                self.s["dark_mode"] = b is dark
+                appearance.set_dark(b is dark)
+        light.connect("toggled", toggled)
+        dark.connect("toggled", toggled)
+
+        def follow():
+            # switched from the top bar: show it here too
+            from .common import dark_theme
+            want = dark if dark_theme() else light
+            if not want.get_active():
+                want.handler_block_by_func(toggled)
+                want.set_active(True)
+                want.handler_unblock_by_func(toggled)
+        from .common import on_theme_change
+        on_theme_change(follow)
+        v.pack_start(row("Appearance", look), False, False, 0)
+        v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Wallpaper"), False, False, 0)
         flow = Gtk.FlowBox()
         flow.set_max_children_per_line(3)

@@ -68,6 +68,14 @@ EXTRAS = [
          needs="/etc/apt/sources.list.d/mozilla.sources"),
 ]
 
+DARK_CSS = b"""
+.store-toolbar { border-bottom-color: rgba(0,0,0,0.6); background-image: linear-gradient(to bottom, #3e3e43, #2f2f33); }
+.store-page { background-color: #232326; }
+.store-card { background-color: #2f2f33; border-color: rgba(255,255,255,0.08); box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+.store-section { color: #ececf0; }
+.store-summary, .store-dim { color: #9a9ea8; }
+"""
+
 CSS = b"""
 .store-toolbar { padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,0.18);
   background-image: linear-gradient(to bottom, #fbfbfc, #e6e7ea); }
@@ -464,10 +472,8 @@ class Store(Gtk.Window):
         self.set_icon_name("slope-store")
         self.set_default_size(1100, 740)
         self.set_position(Gtk.WindowPosition.CENTER)
-        prov = Gtk.CssProvider()
-        prov.load_from_data(CSS)
-        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
-                                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        from .common import install_css
+        install_css(CSS, DARK_CSS)        # DARK_CSS follows dark mode live
         self.cat = Catalog()
         self.icons = Icons()
         self.ops = Operations(self)

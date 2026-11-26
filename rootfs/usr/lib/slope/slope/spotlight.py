@@ -14,7 +14,7 @@ gi.require_foreign("cairo")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import SHARE, open_app, friendly_name, icon_for, launch, spawn  # noqa: E402
+from .common import SHARE, dark_theme, open_app, friendly_name, icon_for, launch, spawn  # noqa: E402
 
 W = 680
 
@@ -158,8 +158,12 @@ class Spotlight(Gtk.Window):
         r = 14
         art.rounded_rect(cr, 0.5, 0.5, a.width - 1, a.height - 1, r)
         g = cairo.LinearGradient(0, 0, 0, a.height)
-        g.add_color_stop_rgba(0, 0.98, 0.985, 1, 0.97)
-        g.add_color_stop_rgba(1, 0.93, 0.945, 0.97, 0.96)
+        if dark_theme():
+            g.add_color_stop_rgba(0, 0.21, 0.21, 0.235, 0.97)
+            g.add_color_stop_rgba(1, 0.165, 0.165, 0.185, 0.97)
+        else:
+            g.add_color_stop_rgba(0, 0.98, 0.985, 1, 0.97)
+            g.add_color_stop_rgba(1, 0.93, 0.945, 0.97, 0.96)
         cr.set_source(g)
         cr.fill_preserve()
         cr.set_source_rgba(0, 0, 0, 0.22)
@@ -167,7 +171,7 @@ class Spotlight(Gtk.Window):
         cr.stroke()
         art.rounded_rect(cr, 3, 2, a.width - 6, 30, r - 2)
         hg = cairo.LinearGradient(0, 0, 0, 32)
-        hg.add_color_stop_rgba(0, 1, 1, 1, 0.9)
+        hg.add_color_stop_rgba(0, 1, 1, 1, 0.1 if dark_theme() else 0.9)
         hg.add_color_stop_rgba(1, 1, 1, 1, 0)
         cr.set_source(hg)
         cr.fill()
@@ -335,6 +339,12 @@ def main():
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     except GLib.Error:
+        pass
+    from .common import install_css
+    try:
+        with open(os.path.join(SHARE, "shell-dark.css"), "rb") as f:
+            install_css(b"", f.read())
+    except OSError:
         pass
     Spotlight()
     Gtk.main()

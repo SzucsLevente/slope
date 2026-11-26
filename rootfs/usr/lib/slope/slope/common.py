@@ -68,6 +68,41 @@ FRIENDLY_NAMES = {
 SHELL_CLASS = "Slope"
 
 
+def dark_theme():
+    """True while the dark appearance (the Slope-Dark GTK theme) is on."""
+    name = Gtk.Settings.get_default().get_property("gtk-theme-name") or ""
+    return name.endswith("-Dark") or name.endswith("-dark")
+
+
+def on_theme_change(cb):
+    """Call cb() whenever light / dark appearance switches."""
+    Gtk.Settings.get_default().connect("notify::gtk-theme-name", lambda *_: cb())
+
+
+def install_css(light, dark=None):
+    """An app's own style sheet, plus dark overrides while dark mode is on
+    (app CSS beats the theme, so it has to follow the switch itself)."""
+    screen = Gdk.Screen.get_default()
+    prov = Gtk.CssProvider()
+    prov.load_from_data(light)
+    Gtk.StyleContext.add_provider_for_screen(screen, prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    if dark is None:
+        return
+    dprov = Gtk.CssProvider()
+    dprov.load_from_data(dark)
+    state = {"on": False}
+
+    def update():
+        want = dark_theme()
+        if want and not state["on"]:
+            Gtk.StyleContext.add_provider_for_screen(screen, dprov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        elif not want and state["on"]:
+            Gtk.StyleContext.remove_provider_for_screen(screen, dprov)
+        state["on"] = want
+    update()
+    on_theme_change(update)
+
+
 def load_settings():
     data = dict(DEFAULTS)
     try:

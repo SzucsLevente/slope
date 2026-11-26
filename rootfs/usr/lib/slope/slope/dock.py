@@ -10,7 +10,7 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import launcher_actions, open_app, icon_for, spawn  # noqa: E402
+from .common import dark_theme, launcher_actions, on_theme_change, open_app, icon_for, spawn  # noqa: E402
 
 TRASH_DIR = os.path.join(GLib.get_user_data_dir(), "Trash", "files")
 
@@ -67,6 +67,7 @@ class Dock(Gtk.Window):
         self._shape_idle = None
         self._composited = self.get_screen().is_composited()
         self.get_screen().connect("composited-changed", lambda *_: self.configure())
+        on_theme_change(self.queue_draw)
         # a resize can drop the window shape: set it again afterwards
         self.connect("configure-event", lambda *_: (self._reshape(), False)[1])
         Gtk.IconTheme.get_default().connect("changed", lambda *_: (self.icons.clear(), self.queue_draw()))
@@ -598,8 +599,12 @@ class Dock(Gtk.Window):
             cr.transform(self._matrix())
             art.rounded_rect(cr, xl, top, xr - xl, bot - top, r)
             g = cairo.LinearGradient(0, top, 0, bot)
-            g.add_color_stop_rgb(0, 0.93, 0.95, 0.98)
-            g.add_color_stop_rgb(1, 0.76, 0.81, 0.89)
+            if dark_theme():
+                g.add_color_stop_rgb(0, 0.30, 0.30, 0.33)
+                g.add_color_stop_rgb(1, 0.20, 0.20, 0.22)
+            else:
+                g.add_color_stop_rgb(0, 0.93, 0.95, 0.98)
+                g.add_color_stop_rgb(1, 0.76, 0.81, 0.89)
             cr.set_source(g)
             cr.fill()
             cr.restore()

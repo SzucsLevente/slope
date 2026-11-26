@@ -14,6 +14,7 @@ mkdir -p /usr/share/backgrounds/slope
 PYTHONPATH=/usr/lib/slope python3 -m slope.art /usr/share/backgrounds/slope
 # glossy traffic-light buttons for the (patched) Openbox theme
 cp /usr/share/backgrounds/slope/titlebuttons/*.png /usr/share/themes/Slope/openbox-3/
+cp /usr/share/backgrounds/slope/titlebuttons/*.png /usr/share/themes/Slope-Dark/openbox-3/
 rm -rf /usr/share/backgrounds/slope/titlebuttons
 # Launchpad icon and installer branding
 install -Dm644 /usr/share/backgrounds/slope/launchpad-256.png /usr/share/icons/hicolor/256x256/apps/slope-launchpad.png

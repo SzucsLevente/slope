@@ -1,0 +1,8 @@
+/* Slope (light) colours */
+@define-color slope_blue #2f86f3;
+@define-color slope_text #1d1d1f;
+@define-color theme_selected_bg_color #2f86f3;
+@define-color theme_selected_fg_color #ffffff;
+@define-color theme_bg_color #ececec;
+@define-color theme_base_color #ffffff;
+@define-color accent_bg_color #2f86f3;

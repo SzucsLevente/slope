@@ -19,6 +19,10 @@ fi
 mkdir -p "$HOME/.config/slope"
 xdg-user-dirs-update >/dev/null 2>&1 || true
 
+# light or dark appearance: writes ~/.config/slope/xsettingsd.conf and
+# ~/.config/slope/openbox-rc.xml (System Settings > Appearance)
+slope-ctl appearance >/dev/null 2>&1 || true
+
 XS=/usr/share/slope/xsettingsd.conf
 [ -f "$HOME/.config/slope/xsettingsd.conf" ] && XS="$HOME/.config/slope/xsettingsd.conf"
 xsettingsd -c "$XS" >/dev/null 2>&1 &
@@ -29,4 +33,6 @@ dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_CURRENT_DESK
     XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_MODULES UBUNTU_MENUPROXY QT_QPA_PLATFORMTHEME \
     LD_PRELOAD 2>/dev/null || true
 
-exec openbox --config-file /usr/share/slope/openbox/rc.xml --startup /usr/lib/slope/slope-startup
+OBRC=/usr/share/slope/openbox/rc.xml
+[ -f "$HOME/.config/slope/openbox-rc.xml" ] && OBRC="$HOME/.config/slope/openbox-rc.xml"
+exec openbox --config-file "$OBRC" --startup /usr/lib/slope/slope-startup
