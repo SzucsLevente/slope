@@ -8,5 +8,5 @@ Encoding=UTF-8
 GtkTheme=Slope
 MetacityTheme=Slope
 IconTheme=Slope
-CursorTheme=Adwaita
+CursorTheme=Slope-Cursors
 ButtonLayout=close,minimize,maximize:

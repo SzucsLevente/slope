@@ -590,6 +590,20 @@ class SettingsWindow(Gtk.Window):
         cfg = inputdev.load()
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 
+        from . import appearance
+        cs = Gtk.ComboBoxText()
+        for size, label in ((24, "Normal"), (32, "Large"), (48, "Larger"), (64, "Largest")):
+            cs.append(str(size), label)
+        cs.set_active_id(str(self.s.get("cursor_size", 24)))
+        cs.connect("changed", lambda w: appearance.set_options(cursor_size=int(w.get_active_id())))
+        v.pack_start(row("Pointer size", cs), False, False, 0)
+        csn = Gtk.Label(xalign=0)
+        csn.set_line_wrap(True)
+        csn.set_markup("<small>Large or Larger suit Retina screens. Apps follow at once; "
+                       "the desktop itself after you log in again.</small>")
+        csn.get_style_context().add_class("dim-label")
+        v.pack_start(csn, False, False, 0)
+
         def save(key, value):
             cfg[key] = value
             self._save(key, value)

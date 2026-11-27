@@ -29,6 +29,12 @@ install -Dm644 /usr/share/backgrounds/slope/logo-256.png /usr/share/icons/hicolo
 install -Dm644 /usr/share/backgrounds/slope/logo-64.png /usr/share/icons/hicolor/64x64/apps/slope.png
 gtk-update-icon-cache -q -f /usr/share/icons/hicolor || true
 
+echo "--- cursors"
+# Slope's own glossy cursors (slope/cursors.py), the default for everyone
+PYTHONPATH=/usr/lib/slope python3 -m slope.cursors /usr/share/icons/Slope-Cursors
+mkdir -p /usr/share/icons/default
+printf '[Icon Theme]\nInherits=Slope-Cursors\n' > /usr/share/icons/default/index.theme
+
 echo "--- byte-compile the shell"
 python3 -m compileall -q /usr/lib/slope/slope
 

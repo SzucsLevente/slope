@@ -7,4 +7,4 @@ Encoding=UTF-8
 [X-GNOME-Metatheme]
 GtkTheme=Slope-Dark
 IconTheme=Slope
-CursorTheme=Adwaita
+CursorTheme=Slope-Cursors

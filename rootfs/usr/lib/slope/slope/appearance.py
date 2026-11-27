@@ -119,7 +119,7 @@ def build_theme(name, dark, settings=None):
     accent = accent_color(s)
     _write(os.path.join(root, "index.theme"),
            "[Desktop Entry]\nType=X-GNOME-Metatheme\nName=%s\nComment=Made by Slope (accent %s)\n\n"
-           "[X-GNOME-Metatheme]\nGtkTheme=%s\nIconTheme=Slope\nCursorTheme=Slope\n" % (name, accent, name))
+           "[X-GNOME-Metatheme]\nGtkTheme=%s\nIconTheme=Slope\nCursorTheme=Slope-Cursors\n" % (name, accent, name))
     gtk3 = ['@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained%s.css");' % ("-dark" if dark else ""),
             '@import url("file://%s/%s/gtk-3.0/colors.css");' % (SYS_THEMES, base),
             '@import url("accent.css");',
@@ -179,6 +179,8 @@ def write_xsettings(dark, name=None):
         text = ""
     text = re.sub(r'^Net/ThemeName .*$', 'Net/ThemeName "%s"' % name, text, flags=re.M)
     text = re.sub(r'^Gtk/ApplicationPreferDarkTheme .*\n?', '', text, flags=re.M)
+    size = int(_settings().get("cursor_size", 24) or 24)
+    text = re.sub(r'^Gtk/CursorThemeSize .*$', 'Gtk/CursorThemeSize %d' % size, text, flags=re.M)
     text = text.rstrip("\n") + "\nGtk/ApplicationPreferDarkTheme %d\n" % int(dark)
     _write(XS_USER, "# Made by Slope from %s (dark mode: %s)\n" % (XS_SYSTEM, "on" if dark else "off") + text)
 
