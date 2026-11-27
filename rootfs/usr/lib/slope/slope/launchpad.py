@@ -26,7 +26,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_foreign("cairo")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango  # noqa: E402
 
-ICON = 80
+ICON = 88
 HIDDEN = {"slope-launchpad", "slope-spotlight"}
 
 CSS = b"""
@@ -74,6 +74,14 @@ CSS = b"""
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   font-size: 10.5pt;
 }
+.slope-launchpad button.page-dot {
+  min-width: 9px; min-height: 9px; padding: 0; margin: 0 5px;
+  border-radius: 999px; border: none; box-shadow: none;
+  background-image: none; background-color: rgba(255, 255, 255, 0.32);
+  transition: background-color 200ms ease-out;
+}
+.slope-launchpad button.page-dot:hover { background-color: rgba(255, 255, 255, 0.6); }
+.slope-launchpad button.page-dot.current { background-color: rgba(255, 255, 255, 0.95); }
 .slope-launchpad label.hint {
   color: rgba(255, 255, 255, 0.7);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
@@ -204,30 +212,39 @@ class Launchpad(Gtk.Window):
         self.search = Gtk.SearchEntry()
         self.search.set_placeholder_text("Search")
         self.search.set_halign(Gtk.Align.CENTER)
-        self.search.connect("search-changed", lambda *_: self.flow.invalidate_filter())
+        self.search.connect("search-changed", lambda *_: self._search_changed())
         self.search.connect("activate", self._activate_first)
         outer.pack_start(self.search, False, False, 0)
 
-        sw = self.scroller = Gtk.ScrolledWindow()
-        sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        sw.set_overlay_scrolling(True)
-        outer.pack_start(sw, True, True, 0)
-        self.flow = Gtk.FlowBox()
-        self.flow.set_valign(Gtk.Align.START)
-        self.flow.set_homogeneous(True)
-        cols = max(4, min(8, (self.geo.width - 2 * side) // 150))
-        self.flow.set_min_children_per_line(cols)
-        self.flow.set_max_children_per_line(cols)
-        self.flow.set_row_spacing(14)
-        self.flow.set_column_spacing(14)
-        self.flow.set_selection_mode(Gtk.SelectionMode.SINGLE)
-        self.flow.set_activate_on_single_click(True)
-        self.flow.set_filter_func(self._filter)
-        self.flow.connect("child-activated", lambda f, c: self._open(c.appinfo))
-        self.flow.connect("button-press-event", self._flow_press)
-        sw.add(self.flow)
+        # pages of apps, like on a Mac: swipe, scroll or use the arrow keys
+        self.cols = max(4, min(8, (self.geo.width - 2 * side) // 160))
+        usable = self.geo.height - int(self.geo.height * 0.06) - 24 - 30 - 40 - 30 - 18 * 3
+        self.rows = max(2, min(6, usable // 136))
+        self.pages = Gtk.Stack()
+        self.pages.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+        self.pages.set_transition_duration(380)
+        self.pages.set_vexpand(True)
+        outer.pack_start(self.pages, True, True, 0)
+        self.flows = []
+        self.page = 0
+        self.results = self._new_flow()
+        self.results.set_filter_func(self._filter)
+        # search results can be any length: they scroll (and must not make
+        # the pages area taller than the screen)
+        self.results_sw = Gtk.ScrolledWindow()
+        self.results_sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.results_sw.set_overlay_scrolling(True)
+        self.results_sw.add(self.results)
+        self.pages.add_named(self.results_sw, "results")
+        self.dots = Gtk.Box()
+        self.dots.set_halign(Gtk.Align.CENTER)
+        outer.pack_start(self.dots, False, False, 0)
+        self.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        self.connect("scroll-event", self._scroll)
+        self._scroll_acc = 0.0
+        self._scroll_lock = 0
 
-        hint = Gtk.Label(label="Click an app to open it  ·  Right-click → Keep in Dock  ·  Esc to close")
+        hint = Gtk.Label(label="Click an app to open it  ·  Swipe or scroll for more  ·  Right-click → Keep in Dock  ·  Esc to close")
         hint.get_style_context().add_class("hint")
         outer.pack_start(hint, False, False, 0)
 
@@ -248,14 +265,13 @@ class Launchpad(Gtk.Window):
             return
         if not self.shown:
             if self._dirty or load_settings().get("new_apps", []) != self.new_apps:
-                for c in self.flow.get_children():
-                    self.flow.remove(c)
                 self._populate()
                 self._dirty = False
             self.bg = frosted_screen(self.geo)          # before we cover the screen
             self.search.set_text("")
-            self.flow.unselect_all()
-            self.scroller.get_vadjustment().set_value(0)
+            for f in self._all_flows():
+                f.unselect_all()
+            self._show_page(0, animate=False)
             self.set_opacity(0.0)
             self.get_style_context().add_class("zoom")
             self.fullscreen()
@@ -304,8 +320,40 @@ class Launchpad(Gtk.Window):
         self._anim = self.add_tick_callback(tick)
 
     # -- content -----------------------------------------------------------
+    def _new_flow(self):
+        flow = Gtk.FlowBox()
+        flow.set_valign(Gtk.Align.START)
+        flow.set_homogeneous(True)
+        flow.set_min_children_per_line(self.cols)
+        flow.set_max_children_per_line(self.cols)
+        flow.set_row_spacing(14)
+        flow.set_column_spacing(14)
+        flow.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        flow.set_activate_on_single_click(True)
+        flow.connect("child-activated", lambda f, c: self._open(c.appinfo))
+        flow.connect("button-press-event", self._flow_press)
+        return flow
+
+    @property
+    def flow(self):
+        """The grid on screen: the search results, or the current page."""
+        if self.search.get_text().strip() or not self.flows:
+            return self.results
+        return self.flows[min(self.page, len(self.flows) - 1)]
+
+    def _all_flows(self):
+        return self.flows + [self.results]
+
+    def _clear(self):
+        for f in self.flows:
+            self.pages.remove(f)
+        self.flows = []
+        for c in self.results.get_children():
+            self.results.remove(c)
+
     def _populate(self):
         self.new_apps = list(load_settings().get("new_apps", []))
+        self._clear()
         apps = []
         for a in Gio.AppInfo.get_all():
             if not isinstance(a, Gio.DesktopAppInfo) or not a.should_show():
@@ -337,14 +385,103 @@ class Launchpad(Gtk.Window):
             box.pack_start(lbl, False, False, 0)
             child.add(box)
             child.set_tooltip_text(a.get_description() or a.get_name())
-            self.flow.add(child)
+            per_page = self.cols * self.rows
+            n = sum(len(f.get_children()) for f in self.flows)
+            if n % per_page == 0:
+                f = self._new_flow()
+                self.flows.append(f)
+                self.pages.add_named(f, "page%d" % len(self.flows))
+                f.show_all()
+            self.flows[-1].add(child)
+            # the same app in the search results grid
+            twin = Gtk.FlowBoxChild()
+            twin.appinfo = a
+            twin.search = child.search
+            tbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            tbox.pack_start(Gtk.Image.new_from_pixbuf(img.get_pixbuf()), False, False, 0)
+            tl = Gtk.Label()
+            tl.set_markup(lbl.get_label()) if a.get_id() in self.new_apps else tl.set_text(lbl.get_text())
+            tl.set_ellipsize(Pango.EllipsizeMode.END)
+            tl.set_max_width_chars(14)
+            tl.get_style_context().add_class("app")
+            tbox.pack_start(tl, False, False, 0)
+            twin.add(tbox)
+            self.results.add(twin)
+        self._show_page(0, animate=False)
 
     def _filter(self, child):
         q = self.search.get_text().strip().lower()
         return not q or all(part in child.search for part in q.split())
 
     def _visible_children(self):
-        return [c for c in self.flow.get_children() if c.get_child_visible() and self._filter(c)]
+        if self.flow is self.results:
+            return [c for c in self.results.get_children() if c.get_child_visible() and self._filter(c)]
+        return list(self.flow.get_children())
+
+    # -- pages -------------------------------------------------------------------
+    def _rebuild_dots(self):
+        for c in self.dots.get_children():
+            self.dots.remove(c)
+        if self.search.get_text().strip() or len(self.flows) < 2:
+            return
+        for i in range(len(self.flows)):
+            b = Gtk.Button()
+            b.get_style_context().add_class("page-dot")
+            if i == self.page:
+                b.get_style_context().add_class("current")
+            b.connect("clicked", lambda _b, k=i: self._show_page(k))
+            self.dots.pack_start(b, False, False, 0)
+        self.dots.show_all()
+
+    def _show_page(self, k, animate=True):
+        if not self.flows:
+            return
+        k = max(0, min(len(self.flows) - 1, k))
+        if not animate:
+            self.pages.set_transition_type(Gtk.StackTransitionType.NONE)
+        elif k > self.page:
+            self.pages.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
+        else:
+            self.pages.set_transition_type(Gtk.StackTransitionType.SLIDE_RIGHT)
+        self.page = k
+        self.pages.set_visible_child(self.flows[k])
+        self._rebuild_dots()
+
+    def _search_changed(self):
+        if self.search.get_text().strip():
+            self.results.invalidate_filter()
+            self.pages.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+            self.pages.set_visible_child(self.results_sw)
+            self._rebuild_dots()
+        else:
+            self.pages.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+            self.pages.set_visible_child(self.flows[self.page] if self.flows else self.results_sw)
+            self._rebuild_dots()
+
+    def _scroll(self, w, ev):
+        """Two-finger swipes, the mouse wheel: next / previous page."""
+        if self.search.get_text().strip():
+            return False
+        now = GLib.get_monotonic_time()
+        if ev.direction == Gdk.ScrollDirection.SMOOTH:
+            _ok, dx, dy = ev.get_scroll_deltas()
+            self._scroll_acc += dx if abs(dx) > abs(dy) else dy
+            if now < self._scroll_lock:
+                self._scroll_acc = 0.0
+                return True
+            if abs(self._scroll_acc) > 1.6:
+                self._show_page(self.page + (1 if self._scroll_acc > 0 else -1))
+                self._scroll_acc = 0.0
+                self._scroll_lock = now + 450000      # one page per swipe
+            return True
+        if now < self._scroll_lock:
+            return True
+        if ev.direction in (Gdk.ScrollDirection.DOWN, Gdk.ScrollDirection.RIGHT):
+            self._show_page(self.page + 1)
+        elif ev.direction in (Gdk.ScrollDirection.UP, Gdk.ScrollDirection.LEFT):
+            self._show_page(self.page - 1)
+        self._scroll_lock = now + 250000
+        return True
 
     def _activate_first(self, *_):
         sel = self.flow.get_selected_children()
@@ -368,6 +505,11 @@ class Launchpad(Gtk.Window):
                 self.search.set_text("")
             else:
                 self.close_launchpad()
+            return True
+        if not self.search.get_text().strip() and ev.keyval in (Gdk.KEY_Left, Gdk.KEY_Right,
+                                                               Gdk.KEY_Page_Up, Gdk.KEY_Page_Down):
+            forward = ev.keyval in (Gdk.KEY_Right, Gdk.KEY_Page_Down)
+            self._show_page(self.page + (1 if forward else -1))
             return True
         if ev.keyval in (Gdk.KEY_Down, Gdk.KEY_Up, Gdk.KEY_Left, Gdk.KEY_Right) and self.search.has_focus():
             vis = self._visible_children()
