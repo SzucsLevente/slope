@@ -5,10 +5,13 @@ pointer grab, so dragging a slider does nothing).  A popover is a small
 override-redirect window with its own pointer grab: clicks inside go to its
 widgets, a click anywhere else (or Esc) closes it.
 """
+import math
+
 import cairo
 from gi.repository import Gdk, GLib, Gtk
 
 from . import art
+from .common import animate, cancel_animation, dark_theme
 
 SHADOW = 14     # transparent margin around the glass for the drop shadow
 RADIUS = 12
@@ -59,17 +62,14 @@ class Popover(Gtk.Window):
         x = max(geo.x - SHADOW + 4, min(geo.x + geo.width - w + SHADOW - 4, x))
         self.move(x, int(top - SHADOW + 4))
         self.resize(w, h)
+        cancel_animation(getattr(self, "_anim", None))
+        self._closing = False
         self.set_opacity(0.0)
         self.show_all()
         self.present()
         self.opened_at = GLib.get_monotonic_time()
-        GLib.timeout_add(16, self._fade_in)
+        self._anim = animate(self, 0.14, self.set_opacity)
         GLib.idle_add(self._grab)
-
-    def _fade_in(self):
-        o = min(1.0, self.get_opacity() + 0.25)
-        self.set_opacity(o)
-        return o < 1.0
 
     def _grab(self):
         gw = self.get_window()
@@ -86,10 +86,22 @@ class Popover(Gtk.Window):
         if self._seat is not None:
             self._seat.ungrab()
             self._seat = None
-        self.hide()
+        if not self.get_visible():
+            return
+        # a quick fade out, then hide
+        if getattr(self, "_closing", False):
+            return
+        cancel_animation(getattr(self, "_anim", None))
+        start = self.get_opacity()
+        self._closing = True
+
+        def gone():
+            self._closing = False
+            self.hide()
+        self._anim = animate(self, 0.11, lambda p: self.set_opacity(start * (1 - p)), gone, ease="in")
 
     def toggle(self, anchor_x, top):
-        if self.get_visible():
+        if self.get_visible() and not getattr(self, "_closing", False):
             self.dismiss()
         else:
             self.popup(anchor_x, top)
@@ -121,6 +133,7 @@ class Popover(Gtk.Window):
     # -- drawing ------------------------------------------------------------
     def _draw(self, w, cr):
         a = self.get_allocation()
+        self._shape(a)
         cr.set_operator(cairo.OPERATOR_SOURCE)
         cr.set_source_rgba(0, 0, 0, 0)
         cr.paint()
@@ -132,21 +145,46 @@ class Popover(Gtk.Window):
                 cr.set_source_rgba(0, 0, 0, 0.018)
                 cr.fill()
         art.rounded_rect(cr, x, y, ww, hh, RADIUS)
+        dark = dark_theme()
         g = cairo.LinearGradient(0, y, 0, y + hh)
-        g.add_color_stop_rgba(0, 0.985, 0.99, 1.0, 0.96)
-        g.add_color_stop_rgba(1, 0.93, 0.945, 0.97, 0.95)
+        if dark:
+            g.add_color_stop_rgba(0, 0.21, 0.21, 0.235, 0.97)
+            g.add_color_stop_rgba(1, 0.165, 0.165, 0.185, 0.97)
+        else:
+            g.add_color_stop_rgba(0, 0.985, 0.99, 1.0, 0.96)
+            g.add_color_stop_rgba(1, 0.93, 0.945, 0.97, 0.95)
         cr.set_source(g)
         cr.fill_preserve()
-        cr.set_source_rgba(0, 0, 0, 0.22)
+        cr.set_source_rgba(0, 0, 0, 0.6 if dark else 0.22)
         cr.set_line_width(1)
         cr.stroke()
         art.rounded_rect(cr, x + 2, y + 1.5, ww - 4, 26, RADIUS - 2)
         hg = cairo.LinearGradient(0, y, 0, y + 28)
-        hg.add_color_stop_rgba(0, 1, 1, 1, 0.9)
+        hg.add_color_stop_rgba(0, 1, 1, 1, 0.1 if dark else 0.9)
         hg.add_color_stop_rgba(1, 1, 1, 1, 0)
         cr.set_source(hg)
         cr.fill()
         return False
+
+
+    def _shape(self, a):
+        """Without a compositor, cut the window to the glass (no black margin)."""
+        key = None
+        if not self.get_screen().is_composited():
+            key = (a.width, a.height)
+        if key == getattr(self, "_shape_key", None):
+            return
+        self._shape_key = key
+        if key is None:
+            self.shape_combine_region(None)
+            return
+        x, y, w, h, r = SHADOW, SHADOW, a.width - 2 * SHADOW, a.height - 2 * SHADOW, RADIUS
+        region = cairo.Region()
+        for dy in range(0, h, 2):
+            e = min(dy + 1, h - dy - 1)
+            inset = r - math.sqrt(max(0.0, r * r - (r - e) ** 2)) if e < r else 0
+            region.union(cairo.RectangleInt(int(x + inset), y + dy, int(w - 2 * inset), min(2, h - dy)))
+        self.shape_combine_region(region)
 
 
 def heading(text):

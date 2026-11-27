@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+GenericName=Terminal
+Comment=Use the command line
+Exec=slope-terminal
+Icon=utilities-terminal
+Categories=System;TerminalEmulator;Utility;
+Keywords=shell;prompt;command;commandline;cmd;console;
+StartupWMClass=slope-terminal
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=slope-terminal

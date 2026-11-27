@@ -140,3 +140,13 @@ mtools
 btrfs-progs
 xfsprogs
 e2fsprogs
+# Slope's own apps: Terminal (VTE), Browser (WebKitGTK), Media Player (GStreamer)
+gir1.2-vte-2.91
+gir1.2-webkit2-4.1
+gir1.2-gstreamer-1.0
+gir1.2-gst-plugins-base-1.0
+gstreamer1.0-gtk3
+gstreamer1.0-libav
+gstreamer1.0-plugins-base
+gstreamer1.0-plugins-good
+gstreamer1.0-pulseaudio

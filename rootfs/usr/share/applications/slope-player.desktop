@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Player
+GenericName=Media Player
+Comment=Watch videos and listen to music
+Exec=slope-player %U
+Icon=multimedia-video-player
+Categories=AudioVideo;Audio;Video;Player;
+Keywords=video;movie;music;audio;mp4;mkv;mp3;
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/mpeg;video/ogg;video/x-flv;video/3gpp;audio/mpeg;audio/mp4;audio/x-m4a;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/x-wav;audio/wav;audio/aac;audio/x-aac;
+StartupWMClass=slope-player

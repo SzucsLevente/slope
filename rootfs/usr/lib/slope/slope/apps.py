@@ -375,6 +375,13 @@ class Apps(GObject.Object):
             return True
         return False
 
+    def set_dock_order(self, ids):
+        """The Dock's kept apps, in this order (desktop file ids)."""
+        self.settings["dock_apps"] = list(ids)
+        from .common import update_setting
+        update_setting("dock_apps", list(ids))
+        self._queue()
+
     def pin(self, g, pinned):
         ids = list(self.settings.get("dock_apps", []))
         if pinned and g.appinfo is not None and g.appinfo.get_id() not in ids:

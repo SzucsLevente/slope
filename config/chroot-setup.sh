@@ -14,6 +14,7 @@ mkdir -p /usr/share/backgrounds/slope
 PYTHONPATH=/usr/lib/slope python3 -m slope.art /usr/share/backgrounds/slope
 # glossy traffic-light buttons for the (patched) Openbox theme
 cp /usr/share/backgrounds/slope/titlebuttons/*.png /usr/share/themes/Slope/openbox-3/
+cp /usr/share/backgrounds/slope/titlebuttons/*.png /usr/share/themes/Slope-Dark/openbox-3/
 rm -rf /usr/share/backgrounds/slope/titlebuttons
 # Launchpad icon and installer branding
 install -Dm644 /usr/share/backgrounds/slope/launchpad-256.png /usr/share/icons/hicolor/256x256/apps/slope-launchpad.png
@@ -28,6 +29,12 @@ install -Dm644 /usr/share/backgrounds/slope/logo-256.png /usr/share/icons/hicolo
 install -Dm644 /usr/share/backgrounds/slope/logo-64.png /usr/share/icons/hicolor/64x64/apps/slope.png
 gtk-update-icon-cache -q -f /usr/share/icons/hicolor || true
 
+echo "--- cursors"
+# Slope's own glossy cursors (slope/cursors.py), the default for everyone
+PYTHONPATH=/usr/lib/slope python3 -m slope.cursors /usr/share/icons/Slope-Cursors
+mkdir -p /usr/share/icons/default
+printf '[Icon Theme]\nInherits=Slope-Cursors\n' > /usr/share/icons/default/index.theme
+
 echo "--- byte-compile the shell"
 python3 -m compileall -q /usr/lib/slope/slope
 
@@ -39,13 +46,16 @@ update-alternatives --set default.plymouth /usr/share/plymouth/themes/slope/slop
 echo "--- default session & apps"
 update-alternatives --install /usr/bin/x-session-manager x-session-manager /usr/bin/slope-session 90
 update-alternatives --set x-session-manager /usr/bin/slope-session
-update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper 2>/dev/null || true
-update-alternatives --set x-www-browser /usr/bin/falkon 2>/dev/null || true
+# Slope Terminal is the terminal everything opens (x-terminal-emulator -e ...)
+update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator /usr/bin/slope-terminal 60
+update-alternatives --set x-terminal-emulator /usr/bin/slope-terminal 2>/dev/null || true
+update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/bin/slope-browser 60
+update-alternatives --set x-www-browser /usr/bin/slope-browser 2>/dev/null || true
 # only offer the Slope session at the login screen
 rm -f /usr/share/xsessions/openbox.desktop /usr/share/xsessions/lightdm-xsession.desktop
 
 # hide technical launchers from Spotlight
-for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton \
+for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton xfce4-terminal \
          display-im6.q16 display-im7.q16 nm-applet thunar thunar-settings thunar-bulk-rename \
          thunar-volman-settings org.xfce.mousepad-settings xfce4-terminal-settings \
          calamares org.kde.calamares xfce4-notifyd-config vim; do
@@ -75,7 +85,7 @@ rename_app org.xfce.mousepad.desktop "TextEdit"
 rename_app org.xfce.ristretto.desktop "Preview"
 rename_app galculator.desktop "Calculator"
 rename_app xfce4-taskmanager.desktop "Activity Monitor"
-rename_app org.kde.falkon.desktop "Browser"
+rename_app org.kde.falkon.desktop "Falkon"
 rename_app atril.desktop "Documents"
 rename_app xarchiver.desktop "Archive Utility"
 rename_app pavucontrol.desktop "Sound"

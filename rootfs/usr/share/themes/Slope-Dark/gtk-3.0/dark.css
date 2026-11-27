@@ -1,0 +1,90 @@
+/* Slope Dark: recolours slope-common.css */
+window.background, .background { background-color: #2c2c2f; color: @slope_text; }
+window.background:not(.popup):not(.tooltip):not(.csd) {
+  background-image: linear-gradient(to bottom, #323236, #29292c);
+}
+
+/* graphite gel buttons */
+button {
+  color: @slope_text;
+  text-shadow: 0 -1px rgba(0, 0, 0, 0.6);
+  border-color: rgba(0, 0, 0, 0.65);
+  border-bottom-color: rgba(0, 0, 0, 0.8);
+  background-color: #4a4a4f;
+  background-image: linear-gradient(to bottom,
+      #6a6a70 0%, #5a5a60 20%, #4c4c52 49%, #3c3c41 50%, #45454a 75%, #55555b 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.16),
+              inset 0 -2px 3px rgba(255, 255, 255, 0.05),
+              0 1px 2px rgba(0, 0, 0, 0.4);
+}
+button:hover {
+  border-color: alpha(mix(@slope_accent, #ffffff, 0.06), 0.55);
+  background-image: linear-gradient(to bottom,
+      #75757c 0%, #66666d 20%, #58585f 49%, #47474d 50%, #505057 75%, #606067 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.2),
+              0 0 0 3px alpha(mix(@slope_accent, #ffffff, 0.17), 0.22),
+              0 1px 3px rgba(0, 0, 0, 0.45);
+}
+button:disabled {
+  color: alpha(@slope_text, 0.35);
+  background-image: linear-gradient(to bottom, #48484d, #3e3e43 49%, #37373b 50%, #3d3d42);
+  border-color: rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
+}
+button.flat:hover, toolbar button:hover, .toolbar button:hover {
+  border-color: rgba(0, 0, 0, 0.5);
+  background-image: linear-gradient(to bottom, #5e5e64, #505056 49%, #424247 50%, #4c4c51);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.14), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+check, radio {
+  border-color: rgba(0, 0, 0, 0.7);
+  background-image: linear-gradient(to bottom, #5c5c62, #4b4b51 49%, #3c3c41 50%, #48484d);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.14), 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+switch {
+  border-color: rgba(0, 0, 0, 0.6);
+  background-image: linear-gradient(to bottom, #2a2a2d, #3a3a3e);
+}
+switch slider { border-color: rgba(0, 0, 0, 0.6); }
+
+scale trough, progressbar trough {
+  border-color: rgba(0, 0, 0, 0.6);
+  background-image: linear-gradient(to bottom, #222225, #303034 60%, #39393d);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+entry, spinbutton:not(.vertical) {
+  color: @slope_text;
+  border-color: rgba(0, 0, 0, 0.6);
+  background-color: #1f1f22;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+menu, .menu, .context-menu {
+  background-color: rgba(42, 42, 46, 0.97);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+menu separator { background-color: rgba(255, 255, 255, 0.10); }
+
+menubar {
+  box-shadow: inset 0 -1px rgba(0, 0, 0, 0.5);
+  background-image: linear-gradient(to bottom, #3c3c40, #2f2f33);
+}
+
+headerbar, .titlebar:not(headerbar) {
+  border-bottom-color: rgba(0, 0, 0, 0.6);
+  background-image: linear-gradient(to bottom, #4a4a4f 0%, #3f3f44 49%, #353539 50%, #2f2f33 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1);
+}
+headerbar:backdrop, .titlebar:backdrop { background-image: linear-gradient(to bottom, #38383c, #303034); }
+headerbar .title { color: @slope_text; text-shadow: 0 -1px rgba(0, 0, 0, 0.6); }
+
+notebook > header { background-image: linear-gradient(to bottom, #38383c, #2e2e32); }
+treeview.view header button {
+  color: @slope_text;
+  background-image: linear-gradient(to bottom, #48484d, #3e3e43 49%, #353539 50%, #3c3c41);
+  border-color: rgba(0, 0, 0, 0.5);
+}
+stacksidebar.sidebar { background-color: rgba(36, 36, 40, 0.95); }
+.view, textview text, iconview, treeview.view { background-color: #1f1f22; color: @slope_text; }

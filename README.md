@@ -30,6 +30,33 @@ machine.
   menus (Keep in Dock, Quit, the app's window list…). It can also sit on the
   **left or right** side (System Settings → Dock & Windows → Position on
   screen); windows then minimize towards that side.
+  Drag an icon sideways to change the order, or up and away to remove it.
+- **Dark mode**: System Settings → Appearance, or the Dark Mode switch in the
+  top bar's Display menu. Apps, window title bars, menus and the top bar switch
+  at once (GTK 3 and 4 apps, Firefox, Qt apps, Terminal).
+- **Full screen** like on a Mac: the green button (or ⌃⌘F). Rest the pointer at
+  the top of the screen to get the window's buttons and **Exit Full Screen**.
+  Double-click the title bar (or ⌘↑) to zoom instead.
+- **Brightness** slider in the top bar's Display menu and in System Settings,
+  plus the brightness keys (and a MacBook's keyboard backlight keys).
+- **Keyboard** settings: any layout and variant (several at once, switched
+  with ⌃Space), Mac keyboard fixes (both ⌥ Option keys as AltGr, swap the key
+  above Tab with the one left of Z), an optional Compose key, and the same
+  layout on the login screen.
+- **Slope's own apps**: **Browser** (WebKit, Safari-like toolbar and tabs,
+  start page with favorites, private windows, bookmarks, find, downloads),
+  **Terminal** (tabs, ⌘C / ⌘V, follows dark mode) and **Player** (videos
+  and music with floating glass controls).
+- **Accent color** (any color) for selections, sidebars, buttons and the
+  top bar's menus, and **window buttons** in color, graphite or the accent
+  color (System Settings → Appearance).
+- **Slope cursors**: glossy Mac-style cursors, sharp on Retina screens, with
+  a pointer size setting.
+- **Launchpad pages** with page dots: swipe, scroll or use the arrow keys.
+- **.deb packages**: open a downloaded `.deb` and the Package Installer
+  installs it with its dependencies (asks for your password).
+- The screen resolution you pick in System Settings → Displays is kept across
+  logins.
 - **Files**: Slope's own Mac OS X style file manager. It has:
   - a sidebar with Favorites, Devices (with Eject) and Colors
   - Icons, List and Columns views (Columns has a preview), with a zoom slider
@@ -157,7 +184,7 @@ from scratch in Python + GTK 3 (`rootfs/usr/lib/slope/slope/`).
 Every push builds the ISO in GitHub Actions (`.github/workflows/build-iso.yml`):
 
 1. Open the repository's **Actions** tab → **Build Slope ISO** → the latest run.
-2. Download the **slope-iso** artifact. It's a zip containing `slope-1.2-amd64.iso`.
+2. Download the **slope-iso** artifact. It's a zip containing `slope-1.3-amd64.iso`.
 
 Pushing a tag such as `v1.0` also attaches the ISO to a GitHub Release.
 
@@ -179,10 +206,10 @@ The image is written to `out/slope-<version>-amd64.iso`. Set
 ## Running it
 
 - **Virtual machine**: VirtualBox, VMware, GNOME Boxes or QEMU. Give it at least
-  2 GB of RAM (4 GB is better). With QEMU: `tools/run-qemu.sh out/slope-1.2-amd64.iso`.
+  2 GB of RAM (4 GB is better). With QEMU: `tools/run-qemu.sh out/slope-1.3-amd64.iso`.
 - **Real computer**: write the ISO to a USB stick with
   [balenaEtcher](https://etcher.balena.io/), Rufus (DD mode), or
-  `sudo dd if=slope-1.2-amd64.iso of=/dev/sdX bs=4M status=progress`, then
+  `sudo dd if=slope-1.3-amd64.iso of=/dev/sdX bs=4M status=progress`, then
   boot from it. It works with both BIOS and UEFI. Secure Boot must be turned
   off, because the boot loader is not signed.
 

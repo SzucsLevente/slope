@@ -94,14 +94,15 @@ class Desktop(Gtk.Window):
             return
         self._old, self._fade = old, 0.0
 
-        def step():
-            self._fade = min(1.0, self._fade + 0.06)
+        def step(p):
+            self._fade = p
             self.queue_draw()
-            if self._fade >= 1.0:
-                self._old = None
-                return False
-            return True
-        GLib.timeout_add(16, step)
+
+        def done():
+            self._old = None
+            self.queue_draw()
+        from .common import animate
+        animate(self, 0.55, step, done, ease="inout")
 
     def _press(self, w, ev):
         self.shell.panel.dismiss_popovers()
@@ -120,6 +121,8 @@ class Shell:
         self.desktop = Desktop(self)
         self.panel = Panel(self)
         self.dock = Dock(self)
+        from .fullscreen import FullscreenBar
+        self.fullscreen_bar = FullscreenBar(self)
 
         scr = Gdk.Screen.get_default()
         scr.connect("size-changed", lambda *_: GLib.timeout_add(300, self._relayout))
@@ -152,6 +155,13 @@ class Shell:
                 return
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        # dark mode: shell-dark.css on top, while the Slope-Dark theme is on
+        from .common import install_css
+        try:
+            with open(os.path.join(SHARE, "shell-dark.css"), "rb") as f:
+                install_css(b"", f.read())
+        except OSError:
+            pass
 
     def _relayout(self):
         self.desktop.place()
@@ -163,7 +173,12 @@ class Shell:
     def _apply_input(self):
         import threading
         from . import inputdev
-        threading.Thread(target=inputdev.apply, daemon=True).start()
+        from . import keyboard
+
+        def go():
+            inputdev.apply()
+            keyboard.apply()        # a keyboard plugged in gets the layouts too
+        threading.Thread(target=go, daemon=True).start()
         return False
 
     def _settings_changed(self, *args):

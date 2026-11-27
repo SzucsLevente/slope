@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Slope Dark
+Comment=Slope's glossy look, in graphite
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=Slope-Dark
+IconTheme=Slope
+CursorTheme=Slope-Cursors

@@ -1,0 +1,9 @@
+/*
+ * Slope Dark: the same glossy gel as Slope, in graphite.
+ * Adwaita dark underneath, Slope's shapes (../../Slope/gtk-3.0/slope-common.css)
+ * on top, then the dark colours (dark.css).
+ */
+@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");
+@import url("colors.css");
+@import url("../../Slope/gtk-3.0/slope-common.css");
+@import url("dark.css");

@@ -7,7 +7,8 @@ import cairo
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 
 from . import art
-from .common import launcher_actions, open_app, have, logout, power, run_quiet, spawn, update_setting
+from .common import (dark_theme, launcher_actions, open_app, have, logout, on_theme_change, power,
+                     run_quiet, spawn, update_setting)
 from .iwd import Agent, Iwd, ethernet_status, signal_bars
 from . import popover
 from .popover import Popover
@@ -76,6 +77,7 @@ class Panel(Gtk.Window):
     def __init__(self, shell):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.shell = shell
+        on_theme_change(lambda: (self.queue_draw(), self.queue_rebuild()))
         self.apps = shell.apps
         self.set_wmclass("slope-panel", "Slope")
         self.set_title("slope-panel")
@@ -132,14 +134,20 @@ class Panel(Gtk.Window):
         alloc = self.get_allocation()
         cr.set_operator(cairo.OPERATOR_SOURCE)
         g = cairo.LinearGradient(0, 0, 0, alloc.height)
-        g.add_color_stop_rgba(0, 1, 1, 1, 0.82)
-        g.add_color_stop_rgba(0.5, 0.96, 0.97, 0.99, 0.74)
-        g.add_color_stop_rgba(0.51, 0.92, 0.94, 0.97, 0.70)
-        g.add_color_stop_rgba(1, 0.95, 0.96, 0.99, 0.74)
+        if dark_theme():
+            g.add_color_stop_rgba(0, 0.24, 0.24, 0.27, 0.86)
+            g.add_color_stop_rgba(0.5, 0.19, 0.19, 0.21, 0.80)
+            g.add_color_stop_rgba(0.51, 0.16, 0.16, 0.18, 0.78)
+            g.add_color_stop_rgba(1, 0.18, 0.18, 0.20, 0.82)
+        else:
+            g.add_color_stop_rgba(0, 1, 1, 1, 0.82)
+            g.add_color_stop_rgba(0.5, 0.96, 0.97, 0.99, 0.74)
+            g.add_color_stop_rgba(0.51, 0.92, 0.94, 0.97, 0.70)
+            g.add_color_stop_rgba(1, 0.95, 0.96, 0.99, 0.74)
         cr.set_source(g)
         cr.paint()
         cr.set_operator(cairo.OPERATOR_OVER)
-        cr.set_source_rgba(1, 1, 1, 0.9)
+        cr.set_source_rgba(1, 1, 1, 0.16 if dark_theme() else 0.9)
         cr.rectangle(0, 0, alloc.width, 1)
         cr.fill()
         cr.set_source_rgba(0, 0, 0, 0.22)
@@ -249,7 +257,7 @@ class Panel(Gtk.Window):
             child.destroy()
 
         logo = Gtk.MenuItem()
-        logo.add(mark_image(15))
+        logo.add(mark_image(15, (0.93, 0.93, 0.95, 1.0) if dark_theme() else (0.08, 0.08, 0.1, 1.0)))
         logo.get_style_context().add_class("slope-logo")
         logo.set_submenu(self._slope_menu())
         self.menubar.append(logo)
@@ -427,7 +435,7 @@ class Panel(Gtk.Window):
 
         file_m = submenu_item("File", [
             cmd_item("New Window", "⌘N", cb=go(home)),
-            cmd_item("New Terminal", "⌘T", cb=lambda: open_app("xfce4-terminal.desktop")),
+            cmd_item("New Terminal", "⌘T", cb=lambda: open_app("slope-terminal.desktop")),
             sep(),
             cmd_item("Find…", "⌘Space", cb=lambda: spawn(["slope-spotlight"])),
         ])
@@ -480,6 +488,14 @@ class Panel(Gtk.Window):
         Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, None,
                                   "org.freedesktop.NetworkManager", "/org/freedesktop/NetworkManager",
                                   "org.freedesktop.NetworkManager", None, self._nm_ready)
+
+        # Display: brightness (and dark mode)
+        self.disp_item = Gtk.MenuItem()
+        self.disp_item.add(Gtk.Image.new_from_icon_name("display-brightness-symbolic", Gtk.IconSize.MENU))
+        self.disp_item.set_tooltip_text("Display")
+        self._on_click(self.disp_item, lambda: self._toggle_popover(self.disp_pop, self.disp_item))
+        self.status.append(self.disp_item)
+        self._build_display_popover()
 
         # Volume: a popover (sliders do not work inside GTK menus)
         self.vol_img = Gtk.Image.new_from_icon_name("audio-volume-high-symbolic", Gtk.IconSize.MENU)
@@ -592,7 +608,7 @@ class Panel(Gtk.Window):
 
     # -- popovers ---------------------------------------------------------
     def _toggle_popover(self, pop, item):
-        for other in (self.vol_pop, self.clock_pop):
+        for other in (self.vol_pop, self.clock_pop, self.disp_pop):
             if other is not pop and other.get_visible():
                 other.dismiss()
         # allocation is relative to the item's GdkWindow (the menu bar's), not the panel's
@@ -603,9 +619,58 @@ class Panel(Gtk.Window):
         pop.toggle(ox + a.x + a.width / 2, py + PANEL_H)
 
     def dismiss_popovers(self):
-        for pop in (self.vol_pop, self.clock_pop):
+        for pop in (self.vol_pop, self.clock_pop, self.disp_pop):
             if pop.get_visible():
                 pop.dismiss()
+
+    def _build_display_popover(self):
+        from . import display
+        pop = Popover(280)
+        self.disp_pop = pop
+        c = pop.content
+        c.pack_start(popover.heading("Display"), False, False, 0)
+        row = Gtk.Box(spacing=8)
+        row.pack_start(Gtk.Image.new_from_icon_name("display-brightness-symbolic", Gtk.IconSize.MENU), False, False, 0)
+        self.bright_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self.bright_scale.set_draw_value(False)
+        self.bright_scale.set_hexpand(True)
+        self._bright_pending = None
+
+        def changed(scale):
+            # the backlight is set from a short timer, so dragging stays smooth
+            if self._bright_pending is None:
+                self._bright_pending = GLib.timeout_add(60, apply_bright)
+
+        def apply_bright():
+            self._bright_pending = None
+            display.set_brightness(self.bright_scale.get_value())
+            return False
+
+        self._bright_handler = self.bright_scale.connect("value-changed", changed)
+        row.pack_start(self.bright_scale, True, True, 0)
+        c.pack_start(row, False, False, 0)
+        drow = Gtk.Box()
+        drow.pack_start(Gtk.Label(label="Dark Mode", xalign=0), True, True, 0)
+        self.dark_sw = Gtk.Switch()
+
+        def dark_changed(sw, _p):
+            from . import appearance
+            appearance.set_dark(sw.get_active())
+        self._dark_handler = self.dark_sw.connect("notify::active", dark_changed)
+        drow.pack_end(self.dark_sw, False, False, 0)
+        c.pack_start(drow, False, False, 0)
+        c.pack_start(Gtk.Separator(), False, False, 0)
+        c.pack_start(popover.link_button("Displays Settings…", lambda: (pop.dismiss(), spawn(
+            ["slope-settings", "--page", "displays"]))), False, False, 0)
+
+        def refresh():
+            self.bright_scale.handler_block(self._bright_handler)
+            self.bright_scale.set_value(display.get_brightness())
+            self.bright_scale.handler_unblock(self._bright_handler)
+            self.dark_sw.handler_block(self._dark_handler)
+            self.dark_sw.set_active(dark_theme())
+            self.dark_sw.handler_unblock(self._dark_handler)
+        pop.on_show = refresh
 
     def _build_volume_popover(self):
         pop = Popover(280)

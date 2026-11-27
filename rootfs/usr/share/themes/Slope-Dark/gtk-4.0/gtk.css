@@ -1,0 +1,9 @@
+/* Slope Dark for plain GTK 4 apps: GTK's own dark theme plus Slope's
+   flat-headerbar rules (which carry their dark colours) */
+@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");
+@import url("../../Slope/gtk-4.0/gtk.css");
+headerbar {
+  background-image: linear-gradient(to bottom, #4a4a4f 0%, #3f3f44 49%, #353539 50%, #2f2f33 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.1);
+}

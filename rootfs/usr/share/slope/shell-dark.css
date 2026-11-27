@@ -1,0 +1,17 @@
+/* Dark mode: recolours shell.css (loaded on top of it while Slope-Dark is on) */
+.slope-panel menubar > menuitem > label,
+.slope-panel menubar > menuitem > box > label { color: #ececf0; }
+.slope-panel .slope-status > menuitem > box > image,
+.slope-panel .slope-status > menuitem > image { color: #ececf0; }
+.slope-panel menubar > menuitem:hover > label,
+.slope-panel menubar > menuitem:hover > box > label { color: #ffffff; }
+.accelerator { color: alpha(#ececf0, 0.5); }
+menu menuitem, menu menuitem label, menu menuitem:backdrop, menu menuitem:backdrop label { color: #ececf0; }
+menu menuitem:hover > label, menu menuitem:hover > box > label,
+menu menuitem:hover:backdrop > label, menu menuitem:hover:backdrop > box > label { color: #ffffff; }
+menu menuitem:disabled, menu menuitem:disabled label, menu menuitem:disabled:backdrop label { color: rgba(236, 236, 240, 0.38); }
+.slope-spotlight entry { color: #f2f2f5; }
+.slope-spotlight label { color: #ececf0; }
+.slope-spotlight .subtitle { color: alpha(#ececf0, 0.55); }
+.slope-spotlight row:selected label, .slope-spotlight row:selected .subtitle { color: #ffffff; }
+.slope-panel menubar > menuitem { color: #ececf0; text-shadow: 0 -1px rgba(0, 0, 0, 0.6); }

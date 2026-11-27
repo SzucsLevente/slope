@@ -17,7 +17,7 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk  # noqa: E402
 from . import art  # noqa: E402
 from .common import load_settings, logout, run_quiet, save_settings, spawn  # noqa: E402
 
-VERSION = "1.2"
+VERSION = "1.3"
 CODENAME = "Glacier"
 
 
@@ -46,6 +46,44 @@ def wallpaper_thumb(name, w=200, h=112):
     cr.clip()
     art.draw_wallpaper(cr, w, h, name)
     return Gdk.pixbuf_get_from_surface(surf, 0, 0, w, h)
+
+
+def pick_layout(parent):
+    """A searchable list of keyboard layouts; returns [layout, variant] or None."""
+    from . import keyboard
+    dlg = Gtk.Dialog(title="Add Input Source", transient_for=parent, modal=True)
+    dlg.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Add", Gtk.ResponseType.OK)
+    dlg.set_default_size(460, 480)
+    box = dlg.get_content_area()
+    box.set_spacing(8)
+    box.set_border_width(12)
+    search = Gtk.SearchEntry()
+    search.set_placeholder_text("Search, e.g. Hungarian")
+    box.pack_start(search, False, False, 0)
+    store = Gtk.ListStore(str, str, str)       # description, layout, variant
+    for lay, (desc, variants) in sorted(keyboard.catalog().items(), key=lambda kv: kv[1][0].lower()):
+        store.append([desc, lay, ""])
+        for var, vdesc in variants:
+            store.append([vdesc, lay, var])
+    filt = store.filter_new()
+    filt.set_visible_func(lambda m, it, _d: search.get_text().lower() in m[it][0].lower())
+    search.connect("search-changed", lambda *_: filt.refilter())
+    tv = Gtk.TreeView(model=filt)
+    tv.set_headers_visible(False)
+    tv.append_column(Gtk.TreeViewColumn("Layout", Gtk.CellRendererText(), text=0))
+    tv.connect("row-activated", lambda *_: dlg.response(Gtk.ResponseType.OK))
+    sw = Gtk.ScrolledWindow()
+    sw.set_shadow_type(Gtk.ShadowType.IN)
+    sw.add(tv)
+    box.pack_start(sw, True, True, 0)
+    dlg.show_all()
+    result = None
+    if dlg.run() == Gtk.ResponseType.OK:
+        model, it = tv.get_selection().get_selected()
+        if it is not None:
+            result = [model[it][1], model[it][2]]
+    dlg.destroy()
+    return result
 
 
 def heading(text):
@@ -297,12 +335,13 @@ class SettingsWindow(Gtk.Window):
         hb.pack_start(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL), False, False, 0)
         hb.pack_start(self.stack, True, True, 0)
 
-        self._add("appearance", "Wallpaper", self._appearance())
+        self._add("appearance", "Appearance", self._appearance())
         self._add("dock", "Dock & Windows", self._dock())
         self._add("trackpad", "Trackpad & Mouse", self._trackpad())
         self._add("network", "Wi-Fi & Network", self._network())
         self._add("displays", "Displays", self._displays())
         self._add("clock", "Date & Time", self._clock())
+        self._add("keyboard", "Keyboard", self._keyboard())
         self._add("shortcuts", "Keyboard Shortcuts", self._shortcuts())
         self._add("about", "About", self._about())
         self.connect("destroy", Gtk.main_quit)
@@ -325,7 +364,120 @@ class SettingsWindow(Gtk.Window):
 
     # -- pages -------------------------------------------------------------
     def _appearance(self):
+        from . import appearance
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        v.pack_start(heading("Appearance"), False, False, 0)
+        look = Gtk.Box(spacing=0)
+        look.get_style_context().add_class("linked")
+        light = Gtk.RadioButton.new_with_label(None, "Light")
+        dark = Gtk.RadioButton.new_with_label_from_widget(light, "Dark")
+        for b in (light, dark):
+            b.set_mode(False)           # look like a segmented control
+            b.set_size_request(110, -1)
+            look.pack_start(b, False, False, 0)
+        (dark if self.s.get("dark_mode") else light).set_active(True)
+
+        def toggled(b):
+            if b.get_active():
+                self.s["dark_mode"] = b is dark
+                appearance.set_dark(b is dark)
+        light.connect("toggled", toggled)
+        dark.connect("toggled", toggled)
+
+        def follow():
+            # switched from the top bar: show it here too
+            from .common import dark_theme
+            want = dark if dark_theme() else light
+            if not want.get_active():
+                want.handler_block_by_func(toggled)
+                want.set_active(True)
+                want.handler_unblock_by_func(toggled)
+        from .common import on_theme_change
+        on_theme_change(follow)
+        v.pack_start(row("Appearance", look), False, False, 0)
+
+        # accent colour: swatches like on a Mac, plus any colour you like
+        cur_accent = self.s.get("accent", "blue")
+        sw_box = Gtk.Box(spacing=6)
+        group = None
+        self._accent_buttons = []
+
+        def swatch(color, selected):
+            da = Gtk.DrawingArea()
+            da.set_size_request(22, 22)
+
+            def draw(w, cr):
+                r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+                a = w.get_allocation()
+                c = min(a.width, a.height) / 2.0
+                grad = cairo.RadialGradient(c, c * 0.6, 1, c, c, c)
+                grad.add_color_stop_rgb(0, min(1, r + 0.35), min(1, g + 0.35), min(1, b + 0.35))
+                grad.add_color_stop_rgb(1, r * 0.85, g * 0.85, b * 0.85)
+                cr.arc(c, c, c - 1.5, 0, 6.2832)
+                cr.set_source(grad)
+                cr.fill_preserve()
+                cr.set_source_rgba(0, 0, 0, 0.3)
+                cr.set_line_width(1)
+                cr.stroke()
+                if w.get_parent().get_active():
+                    cr.arc(c, c, c * 0.32, 0, 6.2832)
+                    cr.set_source_rgb(1, 1, 1)
+                    cr.fill()
+            da.connect("draw", draw)
+            return da
+
+        def picked(btn, key):
+            if btn.get_active():
+                self.s["accent"] = key
+                for b in self._accent_buttons:
+                    b.queue_draw()
+                appearance.set_options(accent=key)
+        for key, label, color in appearance.ACCENTS:
+            b = Gtk.RadioButton.new_from_widget(group)
+            group = group or b
+            b.set_mode(False)
+            b.get_style_context().add_class("flat")
+            b.set_relief(Gtk.ReliefStyle.NONE)
+            b.set_tooltip_text(label)
+            b.add(swatch(color, key == cur_accent))
+            b.set_active(key == cur_accent)
+            b.connect("toggled", picked, key)
+            self._accent_buttons.append(b)
+            sw_box.pack_start(b, False, False, 0)
+        custom = Gtk.ColorButton()
+        custom.set_title("Accent Color")
+        custom.set_tooltip_text("Any colour…")
+        rgba = Gdk.RGBA()
+        rgba.parse(appearance.accent_color(self.s))
+        custom.set_rgba(rgba)
+
+        def custom_set(btn):
+            c = btn.get_rgba()
+            hexcol = "#%02x%02x%02x" % (int(c.red * 255), int(c.green * 255), int(c.blue * 255))
+            for b in self._accent_buttons:
+                b.handler_block_by_func(picked)
+                b.set_active(False)
+                b.handler_unblock_by_func(picked)
+                b.queue_draw()
+            self.s["accent"] = hexcol
+            appearance.set_options(accent=hexcol)
+        custom.connect("color-set", custom_set)
+        sw_box.pack_start(custom, False, False, 6)
+        v.pack_start(row("Accent color", sw_box), False, False, 0)
+        anote = Gtk.Label(xalign=0)
+        anote.set_line_wrap(True)
+        anote.set_markup("<small>Used for selections, sidebars, default buttons, sliders, switches and the "
+                         "highlighted item in the top bar's menus.</small>")
+        anote.get_style_context().add_class("dim-label")
+        v.pack_start(anote, False, False, 0)
+
+        wb = Gtk.ComboBoxText()
+        for key, label in appearance.BUTTON_STYLES:
+            wb.append(key, label)
+        wb.set_active_id(self.s.get("window_buttons", "colorful"))
+        wb.connect("changed", lambda w: appearance.set_options(window_buttons=w.get_active_id()))
+        v.pack_start(row("Window buttons", wb), False, False, 0)
+        v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Wallpaper"), False, False, 0)
         flow = Gtk.FlowBox()
         flow.set_max_children_per_line(3)
@@ -402,10 +554,6 @@ class SettingsWindow(Gtk.Window):
         style.set_active_id(self.s.get("dock_style", "shelf"))
         style.connect("changed", lambda w: self._save("dock_style", w.get_active_id()))
         v.pack_start(row("Style", style), False, False, 0)
-        snote = Gtk.Label(xalign=0)
-        snote.set_markup("<small>On the left or right the Dock is always a glass panel.</small>")
-        snote.get_style_context().add_class("dim-label")
-        v.pack_start(snote, False, False, 0)
 
         v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Windows"), False, False, 0)
@@ -441,6 +589,20 @@ class SettingsWindow(Gtk.Window):
         from . import inputdev
         cfg = inputdev.load()
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+
+        from . import appearance
+        cs = Gtk.ComboBoxText()
+        for size, label in ((24, "Normal"), (32, "Large"), (48, "Larger"), (64, "Largest")):
+            cs.append(str(size), label)
+        cs.set_active_id(str(self.s.get("cursor_size", 24)))
+        cs.connect("changed", lambda w: appearance.set_options(cursor_size=int(w.get_active_id())))
+        v.pack_start(row("Pointer size", cs), False, False, 0)
+        csn = Gtk.Label(xalign=0)
+        csn.set_line_wrap(True)
+        csn.set_markup("<small>Large or Larger suit Retina screens. Apps follow at once; "
+                       "the desktop itself after you log in again.</small>")
+        csn.get_style_context().add_class("dim-label")
+        v.pack_start(csn, False, False, 0)
 
         def save(key, value):
             cfg[key] = value
@@ -567,37 +729,162 @@ class SettingsWindow(Gtk.Window):
         return v
 
     def _displays(self):
+        from . import display
         v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        v.pack_start(heading("Brightness"), False, False, 0)
+        bright = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        bright.set_draw_value(False)
+        bright.set_size_request(260, -1)
+        bright.set_value(display.get_brightness())
+        bright.connect("value-changed", lambda w: display.set_brightness(w.get_value()))
+        v.pack_start(row("Screen brightness", bright), False, False, 0)
+        bnote = Gtk.Label(xalign=0)
+        bnote.set_line_wrap(True)
+        bnote.set_markup("<small>The brightness keys (F1 / F2 on a Mac) work too. "
+                         + ("This screen has no backlight control, so it is dimmed in software."
+                            if display.backlight() is None else "") + "</small>")
+        bnote.get_style_context().add_class("dim-label")
+        v.pack_start(bnote, False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Displays"), False, False, 0)
-        out = run_quiet(["xrandr", "-q"])
-        outputs = []
-        cur = None
-        for line in out.splitlines():
-            m = re.match(r"^(\S+) connected", line)
-            if m:
-                cur = {"name": m.group(1), "modes": [], "current": None}
-                outputs.append(cur)
-                continue
-            m = re.match(r"^\s+(\d+x\d+)\s+(.*)$", line)
-            if m and cur is not None:
-                mode = m.group(1)
-                if mode not in cur["modes"]:
-                    cur["modes"].append(mode)
-                if "*" in m.group(2):
-                    cur["current"] = mode
-            elif not line.startswith(" "):
-                cur = None
-        if not outputs:
+        outs = display.outputs()
+        if not outs:
             v.pack_start(Gtk.Label(label="No displays found.", xalign=0), False, False, 0)
-        for o in outputs:
+        for o in outs:
             combo = Gtk.ComboBoxText()
             for mode in o["modes"]:
                 combo.append(mode, mode.replace("x", " × "))
             if o["current"]:
                 combo.set_active_id(o["current"])
-            combo.connect("changed", lambda c, name=o["name"]: spawn(
-                ["xrandr", "--output", name, "--mode", c.get_active_id()]))
+            # saved, so the resolution is set again at the next login
+            combo.connect("changed", lambda c, name=o["name"]: display.set_mode(name, c.get_active_id()))
             v.pack_start(row("Resolution (%s)" % o["name"], combo), False, False, 0)
+        return v
+
+    def _keyboard(self):
+        from . import keyboard
+        cfg = keyboard.load()
+        v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+
+        def save(key, value):
+            cfg[key] = value
+            self._save(key, value)
+            keyboard.apply(cfg)
+
+        v.pack_start(heading("Input Sources"), False, False, 0)
+        lb = Gtk.ListBox()
+        lb.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        frame = Gtk.Frame()
+        frame.add(lb)
+        v.pack_start(frame, False, False, 0)
+
+        def fill():
+            for c in lb.get_children():
+                lb.remove(c)
+            for i, (lay, var) in enumerate(keyboard.layouts(cfg)):
+                r = Gtk.ListBoxRow()
+                hb = Gtk.Box(spacing=8)
+                hb.set_border_width(8)
+                hb.pack_start(Gtk.Label(label=keyboard.describe(lay, var), xalign=0), True, True, 0)
+                if i == 0:
+                    d = Gtk.Label(label="Default")
+                    d.get_style_context().add_class("dim-label")
+                    hb.pack_end(d, False, False, 0)
+                r.add(hb)
+                lb.add(r)
+            lb.show_all()
+
+        def current():
+            return [list(x) for x in keyboard.layouts(cfg)]
+
+        def add(*_):
+            choice = pick_layout(self)
+            if choice:
+                lay = current()
+                if choice not in lay:
+                    lay.append(choice)
+                save("kb_layouts", lay)
+                fill()
+
+        def remove(*_):
+            r = lb.get_selected_row()
+            lay = current()
+            if r is None or len(lay) < 2:
+                return
+            del lay[r.get_index()]
+            save("kb_layouts", lay)
+            fill()
+
+        def make_default(*_):
+            r = lb.get_selected_row()
+            lay = current()
+            if r is None or r.get_index() == 0:
+                return
+            lay.insert(0, lay.pop(r.get_index()))
+            save("kb_layouts", lay)
+            fill()
+
+        bb = Gtk.Box(spacing=6)
+        for label, cb in (("Add…", add), ("Remove", remove), ("Make Default", make_default)):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", cb)
+            bb.pack_start(b, False, False, 0)
+        v.pack_start(bb, False, False, 0)
+        fill()
+
+        sw = Gtk.ComboBoxText()
+        for opt, label in keyboard.SWITCH_CHOICES:
+            sw.append(opt, label)
+        sw.set_active_id(cfg["kb_switch"])
+        sw.connect("changed", lambda w: save("kb_switch", w.get_active_id()))
+        v.pack_start(row("Switch input sources with", sw), False, False, 0)
+
+        test = Gtk.Entry()
+        test.set_placeholder_text("Type here to try the keyboard")
+        v.pack_start(test, False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
+        v.pack_start(heading("Keys"), False, False, 0)
+
+        def switch(key, label, note=None):
+            w = Gtk.Switch()
+            w.set_active(bool(cfg[key]))
+            w.connect("notify::active", lambda w_, p: save(key, w_.get_active()))
+            v.pack_start(row(label, w), False, False, 0)
+            if note:
+                n = Gtk.Label(xalign=0)
+                n.set_line_wrap(True)
+                n.set_markup("<small>%s</small>" % note)
+                n.get_style_context().add_class("dim-label")
+                v.pack_start(n, False, False, 0)
+
+        switch("kb_option_altgr", "Both ⌥ Option keys type special characters",
+               "Like on a Mac. Normally only the right ⌥ Option (AltGr) key does, e.g. "
+               "⌥ V = @ on a Hungarian keyboard.")
+        switch("kb_swap_iso", "Swap the key above Tab and the key left of Z",
+               "For Apple keyboards where these two keys (e.g. <b>0</b> and <b>í</b> on a Hungarian "
+               "keyboard, <b>§</b> and <b>&lt;</b> on others) type each other’s characters.")
+        switch("kb_swap_alt_win", "Use the key next to the space bar as ⌘ Command",
+               "For PC keyboards: swaps Alt and the Windows key, so ⌘ sits where it is on a Mac.")
+        comp = Gtk.ComboBoxText()
+        for opt, label in keyboard.COMPOSE_CHOICES:
+            comp.append(opt, label)
+        comp.set_active_id(cfg["kb_compose"])
+        comp.connect("changed", lambda w: save("kb_compose", w.get_active_id()))
+        v.pack_start(row("Compose key", comp), False, False, 0)
+
+        v.pack_start(Gtk.Separator(), False, False, 6)
+        login = Gtk.Button(label="Use on the Login Screen Too…")
+        login.set_halign(Gtk.Align.START)
+        login.connect("clicked", lambda *_: keyboard.save_for_login_screen(cfg))
+        v.pack_start(login, False, False, 0)
+        lnote = Gtk.Label(xalign=0)
+        lnote.set_line_wrap(True)
+        lnote.set_markup("<small>Your settings apply when you log in. This also makes them the "
+                         "computer’s keyboard for the login screen (asks for your password).</small>")
+        lnote.get_style_context().add_class("dim-label")
+        v.pack_start(lnote, False, False, 0)
         return v
 
     def _clock(self):
@@ -648,7 +935,8 @@ class SettingsWindow(Gtk.Window):
             ("⌘ M", "Minimize window"),
             ("⌘ Tab", "Switch windows"),
             ("⌘ ↑ / ← / →", "Zoom / tile left / tile right"),
-            ("⌃ ⌘ F", "Full screen"),
+            ("⌃ ⌘ F  /  green button", "Full screen (point at the top of the screen to leave it)"),
+            ("Double-click the title bar", "Zoom the window"),
             ("⌘ ,", "System Settings"),
             ("⌥ ⌘ Esc", "Force Quit"),
             ("⌘ T", "New Terminal"),

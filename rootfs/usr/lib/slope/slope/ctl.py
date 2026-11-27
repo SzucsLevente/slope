@@ -14,6 +14,12 @@
   switch next|previous   switch to the next / previous app window
   key COMBO      press a key combination, e.g. "alt+Left" (used by gestures)
   input          apply trackpad, mouse and gesture settings (at login)
+  keyboard       apply keyboard layouts and key options (at login)
+  display        apply the saved screen resolutions and brightness (at login)
+  appearance     write the light / dark theme files (at login, before Openbox)
+  dark on|off|toggle           switch dark mode
+  brightness up|down|N         screen brightness (brightness keys)
+  kbd-brightness up|down       keyboard backlight (MacBook keys)
   picom-config   write ~/.config/slope/picom.conf (Dock position for animations)
 """
 import os
@@ -46,6 +52,26 @@ def main(argv=None):
         from . import inputdev
         inputdev.apply()
         return 0
+    if cmd == "keyboard":
+        from . import keyboard
+        keyboard.apply()
+        return 0
+    if cmd == "appearance":
+        from . import appearance
+        appearance.prepare_session()
+        return 0
+    if cmd == "dark":
+        from . import appearance
+        arg = argv[1] if len(argv) > 1 else "toggle"
+        appearance.set_dark(not appearance.is_dark() if arg == "toggle" else arg == "on")
+        return 0
+    if cmd == "display":
+        from . import display
+        display.apply()
+        return 0
+    if cmd in ("brightness", "kbd-brightness"):
+        from . import display
+        return display.cli(cmd, argv[1:])
     if cmd == "picom-config":
         from . import picomconf
         picomconf.write(reload=False)

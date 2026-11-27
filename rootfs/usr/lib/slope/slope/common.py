@@ -22,8 +22,9 @@ SHARE = "/usr/share/slope"
 DEFAULTS = {
     "dock_apps": [
         "slope-files.desktop",
-        "org.kde.falkon.desktop",
-        "xfce4-terminal.desktop",
+        "slope-browser.desktop",
+        "slope-terminal.desktop",
+        "slope-player.desktop",
         "org.xfce.mousepad.desktop",
         "org.xfce.ristretto.desktop",
         "galculator.desktop",
@@ -49,6 +50,7 @@ FRIENDLY_NAMES = {
     "thunar": "Files",
     "slope-files": "Files",
     "xfce4-terminal": "Terminal",
+    "slope-terminal": "Terminal",
     "org.xfce.mousepad": "TextEdit",
     "mousepad": "TextEdit",
     "org.xfce.ristretto": "Preview",
@@ -56,8 +58,10 @@ FRIENDLY_NAMES = {
     "galculator": "Calculator",
     "xfce4-taskmanager": "Activity Monitor",
     "org.xfce.taskmanager": "Activity Monitor",
-    "org.kde.falkon": "Browser",
-    "falkon": "Browser",
+    "org.kde.falkon": "Falkon",
+    "slope-browser": "Browser",
+    "slope-player": "Player",
+    "falkon": "Falkon",
     "pavucontrol": "Sound",
     "org.pulseaudio.pavucontrol": "Sound",
     "slope-settings": "System Settings",
@@ -66,6 +70,78 @@ FRIENDLY_NAMES = {
 
 # Our own utility windows use this WM class and never show up in the dock.
 SHELL_CLASS = "Slope"
+
+
+def animate(widget, duration, step, done=None, ease="out"):
+    """Call step(p) with p eased from 0 to 1 over duration seconds, once per
+    screen refresh (the widget's frame clock), then done().  Returns a
+    handle for cancel_animation()."""
+    state = {"t0": None, "id": None}
+
+    def tick(_w, clock):
+        now = clock.get_frame_time() / 1e6
+        if state["t0"] is None:
+            state["t0"] = now
+        t = min(1.0, (now - state["t0"]) / duration) if duration > 0 else 1.0
+        if ease == "out":
+            p = 1 - (1 - t) ** 3
+        elif ease == "in":
+            p = t * t * t
+        elif ease == "inout":
+            p = 4 * t ** 3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+        else:
+            p = t
+        step(p)
+        if t < 1.0:
+            return True
+        state["id"] = None
+        if done:
+            done()
+        return False
+    state["id"] = widget.add_tick_callback(tick)
+    state["widget"] = widget
+    return state
+
+
+def cancel_animation(handle):
+    if handle and handle.get("id") is not None:
+        handle["widget"].remove_tick_callback(handle["id"])
+        handle["id"] = None
+
+
+def dark_theme():
+    """True while the dark appearance (the Slope-Dark GTK theme) is on."""
+    name = Gtk.Settings.get_default().get_property("gtk-theme-name") or ""
+    return "-Dark" in name or name.endswith("-dark")   # Slope-Dark, Slope-Dark-Custom-1...
+
+
+def on_theme_change(cb):
+    """Call cb() whenever light / dark appearance switches."""
+    Gtk.Settings.get_default().connect("notify::gtk-theme-name", lambda *_: cb())
+
+
+def install_css(light, dark=None):
+    """An app's own style sheet, plus dark overrides while dark mode is on
+    (app CSS beats the theme, so it has to follow the switch itself)."""
+    screen = Gdk.Screen.get_default()
+    prov = Gtk.CssProvider()
+    prov.load_from_data(light)
+    Gtk.StyleContext.add_provider_for_screen(screen, prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    if dark is None:
+        return
+    dprov = Gtk.CssProvider()
+    dprov.load_from_data(dark)
+    state = {"on": False}
+
+    def update():
+        want = dark_theme()
+        if want and not state["on"]:
+            Gtk.StyleContext.add_provider_for_screen(screen, dprov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        elif not want and state["on"]:
+            Gtk.StyleContext.remove_provider_for_screen(screen, dprov)
+        state["on"] = want
+    update()
+    on_theme_change(update)
 
 
 def load_settings():
@@ -78,7 +154,9 @@ def load_settings():
     # Files (slope-files) replaced Thunar as the file manager
     apps = data.get("dock_apps")
     if isinstance(apps, list) and "thunar.desktop" in apps:
-        data["dock_apps"] = ["slope-files.desktop" if a == "thunar.desktop" else a for a in apps
+        data["dock_apps"] = ["slope-files.desktop" if a == "thunar.desktop" else
+                             "slope-terminal.desktop" if a == "xfce4-terminal.desktop" else
+                             "slope-browser.desktop" if a == "org.kde.falkon.desktop" else a for a in apps
                              if a != "slope-files.desktop" or "thunar.desktop" not in apps]
     return data
 
@@ -348,7 +426,7 @@ def open_app(desktop_id, target=None):
         uris = [target if "://" in target else Gio.File.new_for_path(target).get_uri()]
     if info is not None and launch(info, uris):
         return True
-    cmd = {"slope-files.desktop": "slope-files", "thunar.desktop": "thunar", "xfce4-terminal.desktop": "xfce4-terminal",
+    cmd = {"slope-files.desktop": "slope-files", "thunar.desktop": "thunar", "xfce4-terminal.desktop": "xfce4-terminal", "slope-terminal.desktop": "slope-terminal",
            "pavucontrol.desktop": "pavucontrol"}.get(desktop_id, desktop_id[:-8])
     spawn([cmd] + ([target] if target else []))
     return False

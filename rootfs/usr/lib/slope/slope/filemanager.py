@@ -23,6 +23,20 @@ URI_TARGETS = [Gtk.TargetEntry.new("text/uri-list", 0, 0)]
 TRASH = "trash:///"
 (C_FILE, C_INFO, C_PIX, C_NAME, C_DATE, C_SIZE, C_KIND, C_DIR, C_SMALL, C_SORT) = range(10)
 
+DARK_CSS = b"""
+.finder-toolbar { border-bottom-color: #19191b; background-image: linear-gradient(to bottom, #3e3e43, #2f2f33); }
+.finder-sidebar, .finder-sidebar list { background-color: #27292e; }
+.finder-sidebar row label { color: #e4e6ea; }
+.finder-sidebar row.section label { color: #8e97a6; }
+.finder-sidebar row image { color: mix(@slope_accent, #ffffff, 0.30); }
+.finder-sidebar row:selected label, .finder-sidebar row:selected image { color: #ffffff; }
+.finder-bottom { border-top-color: #19191b; background-image: linear-gradient(to bottom, #36363a, #2b2b2f); }
+.finder-bottom label { color: #b8bcc4; }
+iconview.finder-icons { background-color: #1f1f22; color: #ececf0; }
+.finder-column { border-right-color: #3a3a3e; }
+.finder-preview { background-color: #29292c; }
+"""
+
 CSS = b"""
 .finder-toolbar { padding: 6px 10px; border-bottom: 1px solid #a7a7a7;
   background-image: linear-gradient(to bottom, #ececec, #d3d3d3); }
@@ -30,9 +44,9 @@ CSS = b"""
 .finder-sidebar row { padding: 3px 12px 3px 16px; min-height: 22px; }
 .finder-sidebar row.section { padding: 12px 8px 2px 10px; }
 .finder-sidebar row.section label { color: #6f7b8b; font-weight: bold; font-size: 8.5pt; }
-.finder-sidebar row:selected { background-image: linear-gradient(to bottom, #72b4f6, #2f7fe2); }
+.finder-sidebar row:selected { background-image: linear-gradient(to bottom, mix(@slope_accent, #ffffff, 0.34), mix(@slope_accent, #000000, 0.06)); }
 .finder-sidebar row:selected label { color: #ffffff; }
-.finder-sidebar row image { color: #4a7fc0; }
+.finder-sidebar row image { color: mix(@slope_accent, #000000, 0.15); }
 .finder-sidebar row:selected image { color: #ffffff; }
 .finder-bottom { padding: 2px 8px; border-top: 1px solid #b4b4b4;
   background-image: linear-gradient(to bottom, #eeeeee, #d9d9d9); }
@@ -40,7 +54,7 @@ CSS = b"""
 .finder-path button { padding: 0 4px; min-height: 0; border: none; background: none; box-shadow: none; }
 .finder-path button label { font-size: 9pt; }
 iconview.finder-icons { background-color: #ffffff; }
-iconview.finder-icons:selected { background-color: #3d8ff0; color: #ffffff; border-radius: 6px; }
+iconview.finder-icons:selected { background-color: mix(@slope_accent, #ffffff, 0.07); color: #ffffff; border-radius: 6px; }
 .finder-column { border-right: 1px solid #d7d7d7; }
 .finder-preview { background-color: #f6f6f6; }
 """
@@ -1024,7 +1038,7 @@ class FilesWindow(Gtk.ApplicationWindow):
         path = self.cwd.get_path()
         if path:
             from .common import spawn
-            spawn(["xfce4-terminal", "--working-directory", path])
+            spawn(["slope-terminal", "--working-directory", path])
 
     def goto_dialog(self):
         dlg = Gtk.Dialog(title="Go to Folder", transient_for=self, modal=True)
@@ -1280,10 +1294,8 @@ class FilesApp(Gtk.Application):
         Gtk.Application.do_startup(self)
         from .common import load_settings
         self.settings = dict(load_settings().get("files", {}))
-        prov = Gtk.CssProvider()
-        prov.load_from_data(CSS)
-        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
-                                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        from .common import install_css
+        install_css(CSS, DARK_CSS)        # DARK_CSS follows dark mode live
         self._menus()
         # like a Mac app: keeps running (in the Dock) when its last window closes
         self.hold()

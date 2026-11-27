@@ -10,13 +10,13 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import art  # noqa: E402
-from .common import launcher_actions, open_app, icon_for, spawn  # noqa: E402
+from .common import dark_theme, launcher_actions, on_theme_change, open_app, icon_for, spawn  # noqa: E402
 
 TRASH_DIR = os.path.join(GLib.get_user_data_dir(), "Trash", "files")
 
 
 class Slot:
-    __slots__ = ("kind", "group", "x", "size", "width", "grow", "target")
+    __slots__ = ("kind", "group", "x", "size", "width", "grow", "target", "shift", "vshift")
 
     def __init__(self, kind, group=None, grow=1.0):
         self.kind = kind        # "app", "sep", "trash", "launchpad"
@@ -26,6 +26,10 @@ class Slot:
         self.width = 0.0
         self.grow = grow        # 0..1: icons pop in when apps start, shrink away when they quit
         self.target = 1.0
+        # where the icon is drawn, relative to its place in the row: when the
+        # order changes (dragging) icons glide over instead of jumping
+        self.shift = 0.0
+        self.vshift = 0.0
 
     @property
     def key(self):
@@ -63,10 +67,13 @@ class Dock(Gtk.Window):
         # would show up as a black (or smeared) block over the apps behind it:
         # then the window is cut to the shape of what it draws.
         self._shape_rects = []
-        self._shape_key = None
+        self._shape_key = "again"
         self._shape_idle = None
         self._composited = self.get_screen().is_composited()
         self.get_screen().connect("composited-changed", lambda *_: self.configure())
+        on_theme_change(self.queue_draw)
+        # a resize can drop the window shape: set it again afterwards
+        self.connect("configure-event", lambda *_: (self._reshape(), False)[1])
         Gtk.IconTheme.get_default().connect("changed", lambda *_: (self.icons.clear(), self.queue_draw()))
 
         self.slots = []
@@ -75,6 +82,8 @@ class Dock(Gtk.Window):
         self.hover = False
         self.mag = 0.0
         self.pressed = None
+        self.drag = None            # an icon being dragged to a new place
+        self._press_at = None
         self.menu_open = False
         self.bounces = {}
         self._anim_id = None
@@ -101,7 +110,7 @@ class Dock(Gtk.Window):
         if self.pos not in ("bottom", "left", "right"):
             self.pos = "bottom"
         # the 3D shelf only makes sense along the bottom; side Docks are glass panels
-        self.style = s.get("dock_style", "shelf") if self.pos == "bottom" else "box"
+        self.style = s.get("dock_style", "shelf")
         if not self._composited:
             self.style = "box"
         self.gap = round(self.S * 0.16)
@@ -114,6 +123,7 @@ class Dock(Gtk.Window):
             self.pad = round(self.S * 0.14)
             self.below = self.pad + 6
         self.icons.clear()
+        self._shape_key = "again"      # the next drawing sets the shape again
         self.refresh()
 
     def refresh(self):
@@ -258,24 +268,50 @@ class Dock(Gtk.Window):
 
     # -- animation ----------------------------------------------------------
     def _kick(self):
+        # runs on the window's frame clock: one step per screen refresh,
+        # eased by the real time that passed (smooth at any frame rate)
         if self._anim_id is None:
-            self._anim_id = GLib.timeout_add(16, self._anim)
+            self._anim_t = None
+            self._anim_id = self.add_tick_callback(self._tick)
 
-    def _anim(self):
+    def _tick(self, _w, clock):
+        t = clock.get_frame_time() / 1e6
+        dt = 1 / 60.0 if self._anim_t is None else max(0.001, min(0.05, t - self._anim_t))
+        self._anim_t = t
+        if self._anim(dt):
+            return True
+        self._anim_id = None
+        return False
+
+    @staticmethod
+    def _ease(dt, tau):
+        """Share of the remaining distance to cover in dt (exponential ease-out)."""
+        return 1.0 - math.exp(-dt / tau)
+
+    def _anim(self, dt=1 / 60.0):
         target = 1.0 if self.hover else 0.0
-        self.mag += (target - self.mag) * 0.3
-        if abs(target - self.mag) < 0.01:
+        self.mag += (target - self.mag) * self._ease(dt, 0.055)
+        if abs(target - self.mag) < 0.005:
             self.mag = target
         now = time.monotonic()
         for k, (start, settle) in list(self.bounces.items()):
             if now - start > 8 or (settle and now >= settle):
                 del self.bounces[k]
         growing = False
+        k_grow = self._ease(dt, 0.075)
+        k_shift = self._ease(dt, 0.085)
         for sl in self.slots:
             if sl.grow != sl.target:
-                sl.grow += (sl.target - sl.grow) * 0.22
-                if abs(sl.grow - sl.target) < 0.01:
+                sl.grow += (sl.target - sl.grow) * k_grow
+                if abs(sl.grow - sl.target) < 0.005:
                     sl.grow = sl.target
+                else:
+                    growing = True
+            if sl.shift or sl.vshift:
+                sl.shift -= sl.shift * k_shift
+                sl.vshift -= sl.vshift * k_shift
+                if abs(sl.shift) < 0.25 and abs(sl.vshift) < 0.25:
+                    sl.shift = sl.vshift = 0.0
                 else:
                     growing = True
         if any(sl.target == 0 and sl.grow == 0 for sl in self.slots):
@@ -284,7 +320,6 @@ class Dock(Gtk.Window):
         fading = self.hover and self._label_alpha() < 1.0
         self.queue_draw()
         if self.mag == target and not self.bounces and not growing and not fading:
-            self._anim_id = None
             if not self.hover:
                 self.mouse_x = None
             return False
@@ -321,6 +356,8 @@ class Dock(Gtk.Window):
     # -- events -------------------------------------------------------------
     def _motion(self, w, ev):
         u, v = self._log(ev.x, ev.y)
+        if self._drag_motion(ev, u, v):
+            return True
         top_limit = self.H - self.below - (self.M if self.hover else self.S) - 6
         x0 = (self.W - self.base_width()) / 2 - self.S * 0.5
         x1 = self.W - x0
@@ -346,6 +383,7 @@ class Dock(Gtk.Window):
         self.shell.panel.dismiss_popovers()
         sl = self._slot_at(self._log(ev.x, ev.y)[0])
         self.pressed = sl
+        self._press_at = self._log(ev.x, ev.y) if ev.button == 1 else None
         self.queue_draw()
         if sl is not None and ev.button == 3:
             self._popup_menu(sl, ev)
@@ -353,6 +391,10 @@ class Dock(Gtk.Window):
         return True
 
     def _release(self, w, ev):
+        self._press_at = None
+        if self.drag is not None:
+            self._drag_end(*self._log(ev.x, ev.y))
+            return True
         sl = self._slot_at(self._log(ev.x, ev.y)[0])
         pressed, self.pressed = self.pressed, None
         self.queue_draw()
@@ -371,6 +413,71 @@ class Dock(Gtk.Window):
                 return True
             self.apps.activate_group(g, ts)
         return True
+
+    # -- dragging icons to a new place -------------------------------------------
+    def _drag_motion(self, ev, u, v):
+        if self.drag is None:
+            sl = self.pressed
+            if (self._press_at is None or sl is None or sl.kind != "app"
+                    or not ev.state & Gdk.ModifierType.BUTTON1_MASK):
+                return False
+            pu, pv = self._press_at
+            if abs(u - pu) < 8 and abs(v - pv) < 8:
+                return False
+            self.drag = {"slot": sl, "u": u, "v": v}
+            self.hover = True
+            self._update_input_shape()
+        d = self.drag
+        d["u"], d["v"] = u, v
+        sl = d["slot"]
+        # dragged up and away from the Dock: it will be removed on release
+        d["remove"] = sl.group.pinned and v < self.H - self.below - self.S * 1.9
+        if not d["remove"]:
+            apps = [x for x in self.slots if x.kind == "app" and x.target > 0]
+            others = [x for x in apps if x is not sl]
+            idx = len(others)
+            for i, x in enumerate(others):
+                if u < x.x + x.width / 2.0:
+                    idx = i
+                    break
+            new = others[:idx] + [sl] + others[idx:]
+            if new != apps:
+                before = {id(x): x.x for x in self.slots}
+                first = self.slots.index(apps[0])
+                rest = [x for x in self.slots if x not in apps]
+                self.slots = rest[:first] + new + rest[first:]
+                self._layout()
+                for x in self.slots:
+                    if x is not sl and id(x) in before:
+                        x.shift += before[id(x)] - x.x      # start where it was drawn
+                self._kick()
+        self.mouse_x = u
+        self.queue_draw()
+        return True
+
+    def _drag_end(self, u, v):
+        d, self.drag = self.drag, None
+        self.pressed = None
+        sl = d["slot"]
+        g = sl.group
+        if not d.get("remove"):
+            # fly from under the pointer into its new place
+            self._layout()
+            sl.shift = (d["u"] - self.S / 2.0) - (sl.x + self.gap / 2.0)
+            sl.vshift = (d["v"] - self.S / 2.0) - (self.H - self.below - sl.size)
+            self._kick()
+        if d.get("remove"):
+            self.apps.pin(g, False)
+        else:
+            order = []
+            for x in self.slots:
+                if x.kind != "app" or x.group.appinfo is None:
+                    continue
+                # dropping a running app among the others keeps it in the Dock
+                if x.group.pinned or x is sl:
+                    order.append(x.group.appinfo.get_id())
+            self.apps.set_dock_order(order)
+        self.queue_draw()
 
     def _popup_menu(self, sl, ev):
         menu = Gtk.Menu()
@@ -533,8 +640,12 @@ class Dock(Gtk.Window):
             cr.transform(self._matrix())
             art.rounded_rect(cr, xl, top, xr - xl, bot - top, r)
             g = cairo.LinearGradient(0, top, 0, bot)
-            g.add_color_stop_rgb(0, 0.93, 0.95, 0.98)
-            g.add_color_stop_rgb(1, 0.76, 0.81, 0.89)
+            if dark_theme():
+                g.add_color_stop_rgb(0, 0.30, 0.30, 0.33)
+                g.add_color_stop_rgb(1, 0.20, 0.20, 0.22)
+            else:
+                g.add_color_stop_rgb(0, 0.93, 0.95, 0.98)
+                g.add_color_stop_rgb(1, 0.76, 0.81, 0.89)
             cr.set_source(g)
             cr.fill()
             cr.restore()
@@ -566,24 +677,38 @@ class Dock(Gtk.Window):
             if pb is None:
                 continue
             size = sl.size
-            ix = sl.x + self.gap / 2.0
-            iy = baseline - size - self._bounce_offset(sl.key)
+            ix = sl.x + self.gap / 2.0 + sl.shift
+            iy = baseline - size - self._bounce_offset(sl.key) + sl.vshift
+            if self.drag is not None and self.drag["slot"] is sl:
+                continue            # drawn last, under the pointer
             scale = size / pb.get_width()
-            # reflection on the glass shelf
-            if self.style == "shelf":
+            # reflection on the glass shelf (not while flying back into place)
+            if self.style == "shelf" and abs(sl.vshift) < 1:
+                # the icon mirrored in the glass, about the shelf's edge; on a
+                # side Dock icons stay upright, so the mirror is sideways
                 cr.save()
+                cr.save()
+                cr.transform(self._matrix())
                 path()
+                cr.restore()
                 cr.clip()
+                rx, ry, _rw, _rh = self._dev_rect(ix, iy, size, size)
                 cr.push_group()
-                y0 = baseline + (baseline - (iy + size))
-                cr.translate(ix, y0 + size)
-                cr.scale(scale, -scale)
+                fade = self.shelf_h * 0.8
+                if self.pos == "bottom":
+                    cr.translate(rx, 2 * baseline - ry)
+                    cr.scale(scale, -scale)
+                    mg = cairo.LinearGradient(0, baseline, 0, baseline + fade)
+                else:
+                    edge = self.H - baseline if self.pos == "left" else baseline
+                    cr.translate(2 * edge - rx, ry)
+                    cr.scale(-scale, scale)
+                    mg = cairo.LinearGradient(edge, 0, edge - fade if self.pos == "left" else edge + fade, 0)
                 Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
                 cr.get_source().set_filter(cairo.FILTER_GOOD)
                 cr.paint()
                 src = cr.pop_group()
                 cr.set_source(src)
-                mg = cairo.LinearGradient(0, baseline, 0, baseline + self.shelf_h * 0.8)
                 mg.add_color_stop_rgba(0, 0, 0, 0, 0.42)
                 mg.add_color_stop_rgba(1, 0, 0, 0, 0.0)
                 cr.mask(mg)
@@ -604,8 +729,35 @@ class Dock(Gtk.Window):
                 self._dot(cr, *self._dev(ix + size / 2.0,
                                          H - (self.shelf_h * 0.28 + 3 if self.style == "shelf" else 4.5)))
 
+        # the icon being dragged follows the pointer (faded: about to be removed)
+        if self.drag is not None:
+            sl = self.drag["slot"]
+            pb = self._icon(sl)
+            if pb is not None:
+                size = self.S
+                dx, dy, _w, _h = self._dev_rect(self.drag["u"] - size / 2.0, self.drag["v"] - size / 2.0,
+                                                size, size)
+                if not self._composited:
+                    self._shape_rects.append((dx, dy, _w, _h))
+                cr.save()
+                cr.translate(dx, dy)
+                cr.scale(size / pb.get_width(), size / pb.get_width())
+                Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
+                cr.get_source().set_filter(cairo.FILTER_GOOD)
+                cr.paint_with_alpha(0.45 if self.drag.get("remove") else 0.9)
+                cr.restore()
+                if self.drag.get("remove"):
+                    cr.push_group()
+                    if self.pos == "bottom":
+                        self._label(cr, self.drag["u"], self.drag["v"] - size / 2.0 - 6, "Remove")
+                    else:
+                        ex, cy = self._dev(self.drag["u"], self.drag["v"] - size / 2.0 - 6)
+                        self._label_side(cr, ex, cy, "Remove")
+                    cr.pop_group_to_source()
+                    cr.paint()
+
         # name label above the hovered icon
-        if self.hover and self.mouse_x is not None and not self.menu_open:
+        if self.hover and self.mouse_x is not None and not self.menu_open and self.drag is None:
             sl = self._slot_at(self.mouse_x)
             if sl is not None:
                 if sl.key != self._label_key:
@@ -637,16 +789,40 @@ class Dock(Gtk.Window):
             dy += step
         return out
 
+    def _x_shape(self, rects):
+        """Set the window's bounding shape (None: no shape) straight through
+        X11: GDK sometimes drops or skips it while the window is resized."""
+        from gi.repository import GdkX11  # noqa: F401  (get_xid)
+        from Xlib import X
+        from Xlib.ext import shape
+        if getattr(self, "_xd", None) is None:
+            from Xlib import display as xdisplay
+            self._xd = xdisplay.Display()
+        xw = self._xd.create_resource_object("window", self.get_window().get_xid())
+        if rects is None:
+            xw.shape_mask(shape.SO.Set, shape.SK.Bounding, 0, 0, X.NONE)
+        else:
+            xw.shape_rectangles(shape.SO.Set, shape.SK.Bounding, X.Unsorted, 0, 0,
+                                [(x, y, max(1, w), max(1, h)) for x, y, w, h in rects])
+        self._xd.flush()
+
+    def _reshape(self):
+        self._shape_key = "again"
+        self._queue_shape()
+
     def _queue_shape(self):
         if self._shape_idle is None:
             self._shape_idle = GLib.idle_add(self._apply_shape)
 
-    def _apply_shape(self):
+    def _apply_shape(self, settle=False):
         """Cut the window to what it painted when nothing composites it."""
         self._shape_idle = None
         if self.get_window() is None:
             return False
-        if self.get_screen().is_composited():
+        # use the state the Dock was last drawn for: the compositor can come
+        # and go in between, and an empty shape would hide the Dock for good
+        # (a window with nothing visible never gets redrawn)
+        if self._composited or not self._shape_rects:
             key = None
         else:
             key = tuple((int(round(x)), int(round(y)), int(round(w)), int(round(h)))
@@ -654,13 +830,16 @@ class Dock(Gtk.Window):
         if key == self._shape_key:
             return False
         self._shape_key = key
-        if key is None:
-            self.shape_combine_region(None)
-        else:
-            region = cairo.Region()
-            for x, y, w, h in key:
-                region.union(cairo.RectangleInt(x, y, max(1, w), max(1, h)))
-            self.shape_combine_region(region)
+        self._x_shape(key)
+        # set it once more after things settle (resizes while the compositor
+        # comes or goes)
+        if not settle and getattr(self, "_shape_settle", None) is None:
+            def again():
+                self._shape_settle = None
+                self._shape_key = "again"
+                self._apply_shape(settle=True)
+                return False
+            self._shape_settle = GLib.timeout_add(400, again)
         return False
 
     def _shelf(self, cr, xl, xr):
