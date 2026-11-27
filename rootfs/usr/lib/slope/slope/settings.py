@@ -554,10 +554,6 @@ class SettingsWindow(Gtk.Window):
         style.set_active_id(self.s.get("dock_style", "shelf"))
         style.connect("changed", lambda w: self._save("dock_style", w.get_active_id()))
         v.pack_start(row("Style", style), False, False, 0)
-        snote = Gtk.Label(xalign=0)
-        snote.set_markup("<small>On the left or right the Dock is always a glass panel.</small>")
-        snote.get_style_context().add_class("dim-label")
-        v.pack_start(snote, False, False, 0)
 
         v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Windows"), False, False, 0)

@@ -110,7 +110,7 @@ class Dock(Gtk.Window):
         if self.pos not in ("bottom", "left", "right"):
             self.pos = "bottom"
         # the 3D shelf only makes sense along the bottom; side Docks are glass panels
-        self.style = s.get("dock_style", "shelf") if self.pos == "bottom" else "box"
+        self.style = s.get("dock_style", "shelf")
         if not self._composited:
             self.style = "box"
         self.gap = round(self.S * 0.16)
@@ -684,19 +684,31 @@ class Dock(Gtk.Window):
             scale = size / pb.get_width()
             # reflection on the glass shelf (not while flying back into place)
             if self.style == "shelf" and abs(sl.vshift) < 1:
+                # the icon mirrored in the glass, about the shelf's edge; on a
+                # side Dock icons stay upright, so the mirror is sideways
                 cr.save()
+                cr.save()
+                cr.transform(self._matrix())
                 path()
+                cr.restore()
                 cr.clip()
+                rx, ry, _rw, _rh = self._dev_rect(ix, iy, size, size)
                 cr.push_group()
-                y0 = baseline + (baseline - (iy + size))
-                cr.translate(ix, y0 + size)
-                cr.scale(scale, -scale)
+                fade = self.shelf_h * 0.8
+                if self.pos == "bottom":
+                    cr.translate(rx, 2 * baseline - ry)
+                    cr.scale(scale, -scale)
+                    mg = cairo.LinearGradient(0, baseline, 0, baseline + fade)
+                else:
+                    edge = self.H - baseline if self.pos == "left" else baseline
+                    cr.translate(2 * edge - rx, ry)
+                    cr.scale(-scale, scale)
+                    mg = cairo.LinearGradient(edge, 0, edge - fade if self.pos == "left" else edge + fade, 0)
                 Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
                 cr.get_source().set_filter(cairo.FILTER_GOOD)
                 cr.paint()
                 src = cr.pop_group()
                 cr.set_source(src)
-                mg = cairo.LinearGradient(0, baseline, 0, baseline + self.shelf_h * 0.8)
                 mg.add_color_stop_rgba(0, 0, 0, 0, 0.42)
                 mg.add_color_stop_rgba(1, 0, 0, 0, 0.0)
                 cr.mask(mg)
