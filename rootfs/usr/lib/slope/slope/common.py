@@ -24,6 +24,7 @@ DEFAULTS = {
         "slope-files.desktop",
         "org.kde.falkon.desktop",
         "slope-terminal.desktop",
+        "slope-player.desktop",
         "org.xfce.mousepad.desktop",
         "org.xfce.ristretto.desktop",
         "galculator.desktop",

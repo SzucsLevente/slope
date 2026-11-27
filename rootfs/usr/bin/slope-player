@@ -1,0 +1,7 @@
+#!/usr/bin/python3
+import faulthandler
+import sys
+faulthandler.enable()
+sys.path.insert(0, "/usr/lib/slope")
+from slope.player import main
+sys.exit(main())
