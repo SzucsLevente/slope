@@ -17,7 +17,7 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk  # noqa: E402
 from . import art  # noqa: E402
 from .common import load_settings, logout, run_quiet, save_settings, spawn  # noqa: E402
 
-VERSION = "1.2"
+VERSION = "1.3"
 CODENAME = "Glacier"
 
 

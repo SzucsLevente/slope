@@ -184,7 +184,7 @@ from scratch in Python + GTK 3 (`rootfs/usr/lib/slope/slope/`).
 Every push builds the ISO in GitHub Actions (`.github/workflows/build-iso.yml`):
 
 1. Open the repository's **Actions** tab → **Build Slope ISO** → the latest run.
-2. Download the **slope-iso** artifact. It's a zip containing `slope-1.2-amd64.iso`.
+2. Download the **slope-iso** artifact. It's a zip containing `slope-1.3-amd64.iso`.
 
 Pushing a tag such as `v1.0` also attaches the ISO to a GitHub Release.
 
@@ -206,10 +206,10 @@ The image is written to `out/slope-<version>-amd64.iso`. Set
 ## Running it
 
 - **Virtual machine**: VirtualBox, VMware, GNOME Boxes or QEMU. Give it at least
-  2 GB of RAM (4 GB is better). With QEMU: `tools/run-qemu.sh out/slope-1.2-amd64.iso`.
+  2 GB of RAM (4 GB is better). With QEMU: `tools/run-qemu.sh out/slope-1.3-amd64.iso`.
 - **Real computer**: write the ISO to a USB stick with
   [balenaEtcher](https://etcher.balena.io/), Rufus (DD mode), or
-  `sudo dd if=slope-1.2-amd64.iso of=/dev/sdX bs=4M status=progress`, then
+  `sudo dd if=slope-1.3-amd64.iso of=/dev/sdX bs=4M status=progress`, then
   boot from it. It works with both BIOS and UEFI. Secure Boot must be turned
   off, because the boot loader is not signed.
 

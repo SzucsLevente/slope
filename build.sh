@@ -193,6 +193,9 @@ rm -rf "$CHROOT/var/cache/slope-debs"
 # ---------------------------------------------------------------------------
 log "Installing the Slope desktop"
 cp -a "$HERE/rootfs/." "$CHROOT/"
+# the installer shows the version from VERSION too
+sed -i -E "s/^( *(short)?[vV]ersion: *).*/\1$VERSION/; s/^( *versionedName: *).*/\1Slope $VERSION \"Glacier\"/; s/^( *shortVersionedName: *).*/\1Slope $VERSION/" \
+  "$CHROOT/etc/calamares/branding/slope/branding.desc"
 # what the App Store must never remove (Slope's own packages)
 grep -v '^\s*#' "$HERE/config/packages.txt" | grep -v '^\s*$' > "$CHROOT/usr/share/slope/core-packages.txt"
 printf '%s\n' openbox libobrender32 libobt2 picom libconfig11 >> "$CHROOT/usr/share/slope/core-packages.txt"
