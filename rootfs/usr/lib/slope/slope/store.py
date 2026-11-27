@@ -446,6 +446,8 @@ class Operations:
                         self.store.op_changed(waiting)
             elif msg.get("type") == "error":
                 op["error"] = msg.get("text")
+                if msg.get("details"):
+                    op["details"] = msg["details"]
             elif msg.get("type") == "done":
                 op["ok"] = True
         stream.read_line_async(GLib.PRIORITY_DEFAULT, None, self._line, op, stream)
@@ -1268,6 +1270,19 @@ class DebInstaller(Gtk.Window):
         self.status.set_max_width_chars(60)
         self.status.set_selectable(True)
         outer.pack_start(self.status, False, False, 0)
+        # what apt said, when something went wrong
+        self.details = Gtk.Expander(label="Details")
+        self.details.set_no_show_all(True)
+        self.details_view = Gtk.TextView()
+        self.details_view.set_editable(False)
+        self.details_view.set_monospace(True)
+        self.details_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        dsw = Gtk.ScrolledWindow()
+        dsw.set_size_request(-1, 160)
+        dsw.add(self.details_view)
+        dsw.show_all()
+        self.details.add(dsw)
+        outer.pack_start(self.details, False, False, 0)
         bb = Gtk.Box(spacing=8)
         outer.pack_start(bb, False, False, 0)
         self.close_btn = Gtk.Button(label="Close")
@@ -1311,6 +1326,7 @@ class DebInstaller(Gtk.Window):
                 if l.startswith("/usr/share/applications/") and l.endswith(".desktop")]
 
     def _install(self, *_):
+        self.details.hide()
         self.install_btn.set_sensitive(False)
         self.bar.show()
         self.bar.set_fraction(0)
@@ -1337,7 +1353,14 @@ class DebInstaller(Gtk.Window):
             self._state()
             self.status.set_markup("<b>%s is installed.</b>" % GLib.markup_escape_text(self.pkg))
         else:
-            self.status.set_text(op.get("error") or "The package was not installed.")
+            self.status.set_markup("<b>%s was not installed.</b>\n%s" % (
+                GLib.markup_escape_text(self.pkg),
+                GLib.markup_escape_text(op.get("error") or "Something went wrong.")))
+            self.install_btn.set_label("Try Again")
+            if op.get("details"):
+                self.details_view.get_buffer().set_text(op["details"])
+                self.details.set_expanded(False)
+                self.details.show()
 
 
 def main(argv=None):
