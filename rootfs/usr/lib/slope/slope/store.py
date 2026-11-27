@@ -81,8 +81,8 @@ CSS = b"""
   background-image: linear-gradient(to bottom, #fbfbfc, #e6e7ea); }
 .store-page { background-color: #f3f4f6; }
 .store-hero { border-radius: 14px; padding: 28px 32px;
-  background-image: linear-gradient(135deg, #2b7cf5 0%, #5ab4ff 55%, #8fe3ff 100%);
-  box-shadow: inset 0 1px rgba(255,255,255,0.6), 0 6px 18px rgba(30,80,160,0.25); }
+  background-image: linear-gradient(135deg, @slope_accent 0%, mix(@slope_accent, #ffffff, 0.25) 55%, mix(@slope_accent, #ffffff, 0.54) 100%);
+  box-shadow: inset 0 1px rgba(255,255,255,0.6), 0 6px 18px alpha(mix(@slope_accent, #000000, 0.36), 0.25); }
 .store-hero label { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
 .store-card { background-color: white; border-radius: 14px; padding: 12px;
   border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }

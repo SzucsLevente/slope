@@ -108,7 +108,7 @@ def cancel_animation(handle):
 def dark_theme():
     """True while the dark appearance (the Slope-Dark GTK theme) is on."""
     name = Gtk.Settings.get_default().get_property("gtk-theme-name") or ""
-    return name.endswith("-Dark") or name.endswith("-dark")
+    return "-Dark" in name or name.endswith("-dark")   # Slope-Dark, Slope-Dark-Custom-1...
 
 
 def on_theme_change(cb):

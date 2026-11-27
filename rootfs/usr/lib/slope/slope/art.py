@@ -326,7 +326,23 @@ def draw_light(cr, size, colors, glyph=None, pressed=False):
         cr.restore()
 
 
-def render_titlebuttons(out, size=68):
+def lights_for(style, accent="#2f86f3"):
+    """Title button colours: "colorful" (red, yellow, green), "graphite",
+    or "accent" (all three in the accent colour)."""
+    if style == "graphite":
+        g = ("#9aa1ad", "#5d636e", "#dfe3ea")
+        return {"close": g, "iconify": g, "max": g}
+    if style == "accent":
+        r, gr, b = hex_rgb(accent)
+
+        def mix(t, k):
+            return "#%02x%02x%02x" % tuple(int(255 * (c + (t - c) * k)) for c in (r, gr, b))
+        a = (mix(1, 0.08), mix(0, 0.35), mix(1, 0.6))
+        return {"close": a, "iconify": a, "max": a}
+    return dict(LIGHTS)
+
+
+def render_titlebuttons(out, size=68, lights=None):
     """Write <button>[_state][_inactive].png files for the patched Openbox."""
     import os
     os.makedirs(out, exist_ok=True)
@@ -336,7 +352,7 @@ def render_titlebuttons(out, size=68):
         render_png(os.path.join(out, name + ".png"), size, size,
                    lambda cr, w, h: draw_light(cr, w, colors, glyph, pressed))
 
-    for btn, colors in LIGHTS.items():
+    for btn, colors in (lights or LIGHTS).items():
         g = glyphs[btn]
         for suffix in ("", "_toggled"):
             if suffix and btn != "max":

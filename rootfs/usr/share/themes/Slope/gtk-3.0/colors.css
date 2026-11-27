@@ -1,8 +1,10 @@
 /* Slope (light) colours */
-@define-color slope_blue #2f86f3;
+/* the accent colour (System Settings > Appearance); everything blue is mixed from it */
+@define-color slope_accent #2f86f3;
+@define-color slope_blue @slope_accent;
 @define-color slope_text #1d1d1f;
-@define-color theme_selected_bg_color #2f86f3;
+@define-color theme_selected_bg_color @slope_accent;
 @define-color theme_selected_fg_color #ffffff;
 @define-color theme_bg_color #ececec;
 @define-color theme_base_color #ffffff;
-@define-color accent_bg_color #2f86f3;
+@define-color accent_bg_color @slope_accent;

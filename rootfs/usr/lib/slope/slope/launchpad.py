@@ -57,8 +57,8 @@ CSS = b"""
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.35);
 }
 .slope-launchpad flowboxchild:selected {
-  background-image: linear-gradient(to bottom, rgba(140,198,255,0.55), rgba(47,134,243,0.40));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.5), 0 0 12px rgba(80, 160, 255, 0.5);
+  background-image: linear-gradient(to bottom, alpha(mix(@slope_accent, #ffffff, 0.47), 0.55), alpha(@slope_accent, 0.40));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.5), 0 0 12px alpha(mix(@slope_accent, #ffffff, 0.17), 0.5);
 }
 .slope-launchpad flowboxchild image {
   transition: -gtk-icon-transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);

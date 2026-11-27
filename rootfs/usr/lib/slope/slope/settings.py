@@ -395,6 +395,88 @@ class SettingsWindow(Gtk.Window):
         from .common import on_theme_change
         on_theme_change(follow)
         v.pack_start(row("Appearance", look), False, False, 0)
+
+        # accent colour: swatches like on a Mac, plus any colour you like
+        cur_accent = self.s.get("accent", "blue")
+        sw_box = Gtk.Box(spacing=6)
+        group = None
+        self._accent_buttons = []
+
+        def swatch(color, selected):
+            da = Gtk.DrawingArea()
+            da.set_size_request(22, 22)
+
+            def draw(w, cr):
+                r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+                a = w.get_allocation()
+                c = min(a.width, a.height) / 2.0
+                grad = cairo.RadialGradient(c, c * 0.6, 1, c, c, c)
+                grad.add_color_stop_rgb(0, min(1, r + 0.35), min(1, g + 0.35), min(1, b + 0.35))
+                grad.add_color_stop_rgb(1, r * 0.85, g * 0.85, b * 0.85)
+                cr.arc(c, c, c - 1.5, 0, 6.2832)
+                cr.set_source(grad)
+                cr.fill_preserve()
+                cr.set_source_rgba(0, 0, 0, 0.3)
+                cr.set_line_width(1)
+                cr.stroke()
+                if w.get_parent().get_active():
+                    cr.arc(c, c, c * 0.32, 0, 6.2832)
+                    cr.set_source_rgb(1, 1, 1)
+                    cr.fill()
+            da.connect("draw", draw)
+            return da
+
+        def picked(btn, key):
+            if btn.get_active():
+                self.s["accent"] = key
+                for b in self._accent_buttons:
+                    b.queue_draw()
+                appearance.set_options(accent=key)
+        for key, label, color in appearance.ACCENTS:
+            b = Gtk.RadioButton.new_from_widget(group)
+            group = group or b
+            b.set_mode(False)
+            b.get_style_context().add_class("flat")
+            b.set_relief(Gtk.ReliefStyle.NONE)
+            b.set_tooltip_text(label)
+            b.add(swatch(color, key == cur_accent))
+            b.set_active(key == cur_accent)
+            b.connect("toggled", picked, key)
+            self._accent_buttons.append(b)
+            sw_box.pack_start(b, False, False, 0)
+        custom = Gtk.ColorButton()
+        custom.set_title("Accent Color")
+        custom.set_tooltip_text("Any colour…")
+        rgba = Gdk.RGBA()
+        rgba.parse(appearance.accent_color(self.s))
+        custom.set_rgba(rgba)
+
+        def custom_set(btn):
+            c = btn.get_rgba()
+            hexcol = "#%02x%02x%02x" % (int(c.red * 255), int(c.green * 255), int(c.blue * 255))
+            for b in self._accent_buttons:
+                b.handler_block_by_func(picked)
+                b.set_active(False)
+                b.handler_unblock_by_func(picked)
+                b.queue_draw()
+            self.s["accent"] = hexcol
+            appearance.set_options(accent=hexcol)
+        custom.connect("color-set", custom_set)
+        sw_box.pack_start(custom, False, False, 6)
+        v.pack_start(row("Accent color", sw_box), False, False, 0)
+        anote = Gtk.Label(xalign=0)
+        anote.set_line_wrap(True)
+        anote.set_markup("<small>Used for selections, sidebars, default buttons, sliders, switches and the "
+                         "highlighted item in the top bar's menus.</small>")
+        anote.get_style_context().add_class("dim-label")
+        v.pack_start(anote, False, False, 0)
+
+        wb = Gtk.ComboBoxText()
+        for key, label in appearance.BUTTON_STYLES:
+            wb.append(key, label)
+        wb.set_active_id(self.s.get("window_buttons", "colorful"))
+        wb.connect("changed", lambda w: appearance.set_options(window_buttons=w.get_active_id()))
+        v.pack_start(row("Window buttons", wb), False, False, 0)
         v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Wallpaper"), False, False, 0)
         flow = Gtk.FlowBox()

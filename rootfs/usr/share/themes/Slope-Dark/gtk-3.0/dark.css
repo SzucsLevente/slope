@@ -18,11 +18,11 @@ button {
               0 1px 2px rgba(0, 0, 0, 0.4);
 }
 button:hover {
-  border-color: rgba(60, 140, 255, 0.55);
+  border-color: alpha(mix(@slope_accent, #ffffff, 0.06), 0.55);
   background-image: linear-gradient(to bottom,
       #75757c 0%, #66666d 20%, #58585f 49%, #47474d 50%, #505057 75%, #606067 100%);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.2),
-              0 0 0 3px rgba(80, 160, 255, 0.22),
+              0 0 0 3px alpha(mix(@slope_accent, #ffffff, 0.17), 0.22),
               0 1px 3px rgba(0, 0, 0, 0.45);
 }
 button:disabled {
