@@ -1038,7 +1038,7 @@ class FilesWindow(Gtk.ApplicationWindow):
         path = self.cwd.get_path()
         if path:
             from .common import spawn
-            spawn(["xfce4-terminal", "--working-directory", path])
+            spawn(["slope-terminal", "--working-directory", path])
 
     def goto_dialog(self):
         dlg = Gtk.Dialog(title="Go to Folder", transient_for=self, modal=True)

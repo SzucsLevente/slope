@@ -485,7 +485,7 @@ class DesktopIcons:
             Gtk.SeparatorMenuItem(),
             self._mi("Clean Up", self.clean_up),
             self._mi("Show Desktop in Files", lambda: files.open_folder(self.dir)),
-            self._mi("Open Terminal", lambda: open_app("xfce4-terminal.desktop")),
+            self._mi("Open Terminal", lambda: open_app("slope-terminal.desktop")),
             Gtk.SeparatorMenuItem(),
             self._mi("Change Wallpaper…", lambda: spawn(["slope-settings", "--page", "appearance"])),
             self._mi("Display Settings…", lambda: spawn(["slope-settings", "--page", "displays"])),

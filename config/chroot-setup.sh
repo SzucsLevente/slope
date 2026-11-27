@@ -46,13 +46,15 @@ update-alternatives --set default.plymouth /usr/share/plymouth/themes/slope/slop
 echo "--- default session & apps"
 update-alternatives --install /usr/bin/x-session-manager x-session-manager /usr/bin/slope-session 90
 update-alternatives --set x-session-manager /usr/bin/slope-session
-update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper 2>/dev/null || true
+# Slope Terminal is the terminal everything opens (x-terminal-emulator -e ...)
+update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator /usr/bin/slope-terminal 60
+update-alternatives --set x-terminal-emulator /usr/bin/slope-terminal 2>/dev/null || true
 update-alternatives --set x-www-browser /usr/bin/falkon 2>/dev/null || true
 # only offer the Slope session at the login screen
 rm -f /usr/share/xsessions/openbox.desktop /usr/share/xsessions/lightdm-xsession.desktop
 
 # hide technical launchers from Spotlight
-for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton \
+for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton xfce4-terminal \
          display-im6.q16 display-im7.q16 nm-applet thunar thunar-settings thunar-bulk-rename \
          thunar-volman-settings org.xfce.mousepad-settings xfce4-terminal-settings \
          calamares org.kde.calamares xfce4-notifyd-config vim; do

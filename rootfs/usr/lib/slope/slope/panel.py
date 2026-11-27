@@ -435,7 +435,7 @@ class Panel(Gtk.Window):
 
         file_m = submenu_item("File", [
             cmd_item("New Window", "⌘N", cb=go(home)),
-            cmd_item("New Terminal", "⌘T", cb=lambda: open_app("xfce4-terminal.desktop")),
+            cmd_item("New Terminal", "⌘T", cb=lambda: open_app("slope-terminal.desktop")),
             sep(),
             cmd_item("Find…", "⌘Space", cb=lambda: spawn(["slope-spotlight"])),
         ])
