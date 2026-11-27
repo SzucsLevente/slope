@@ -432,6 +432,8 @@ class SettingsWindow(Gtk.Window):
                 for b in self._accent_buttons:
                     b.queue_draw()
                 appearance.set_options(accent=key)
+                for d in getattr(self, "_btn_previews", []):
+                    d.queue_draw()
         for key, label, color in appearance.ACCENTS:
             b = Gtk.RadioButton.new_from_widget(group)
             group = group or b
@@ -461,6 +463,8 @@ class SettingsWindow(Gtk.Window):
                 b.queue_draw()
             self.s["accent"] = hexcol
             appearance.set_options(accent=hexcol)
+            for d in getattr(self, "_btn_previews", []):
+                d.queue_draw()
         custom.connect("color-set", custom_set)
         sw_box.pack_start(custom, False, False, 6)
         v.pack_start(row("Accent color", sw_box), False, False, 0)
@@ -475,8 +479,85 @@ class SettingsWindow(Gtk.Window):
         for key, label in appearance.BUTTON_STYLES:
             wb.append(key, label)
         wb.set_active_id(self.s.get("window_buttons", "colorful"))
-        wb.connect("changed", lambda w: appearance.set_options(window_buttons=w.get_active_id()))
         v.pack_start(row("Window buttons", wb), False, False, 0)
+
+        # the three buttons as they will look; click one to choose its colour
+        prev = Gtk.Box(spacing=18)
+        prev.set_halign(Gtk.Align.END)
+        names = (("close", "Close", "x"), ("iconify", "Minimize", "-"), ("max", "Zoom", "+"))
+        self._btn_previews = []
+
+        def current_lights():
+            st = self.s.get("window_buttons", "colorful")
+            return art.lights_for(st, appearance.accent_color(self.s), appearance.button_colors(self.s))
+
+        def pick_button_color(key, label):
+            dlg = Gtk.ColorChooserDialog(title="%s Button Color" % label, transient_for=self)
+            c = Gdk.RGBA()
+            c.parse(appearance.button_colors(self.s)[key])
+            dlg.set_rgba(c)
+            if dlg.run() == Gtk.ResponseType.OK:
+                rgba = dlg.get_rgba()
+                cols = appearance.button_colors(self.s)
+                cols[key] = "#%02x%02x%02x" % (int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255))
+                self.s["button_colors"] = cols
+                self.s["window_buttons"] = "custom"
+                wb.handler_block_by_func(style_changed)
+                wb.set_active_id("custom")
+                wb.handler_unblock_by_func(style_changed)
+                appearance.set_options(window_buttons="custom", button_colors=cols)
+                for d in self._btn_previews:
+                    d.queue_draw()
+            dlg.destroy()
+
+        for key, label, glyph in names:
+            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            da = Gtk.DrawingArea()
+            da.set_size_request(30, 30)
+
+            def draw(w, cr, key=key, glyph=glyph):
+                a = w.get_allocation()
+                size = min(a.width, a.height)
+                cr.translate((a.width - size) / 2.0, (a.height - size) / 2.0)
+                art.draw_light(cr, size, current_lights()[key], glyph)
+            da.connect("draw", draw)
+            ev = Gtk.EventBox()
+            ev.add(da)
+            ev.set_tooltip_text("Choose the %s button's color" % label.lower())
+            ev.connect("button-release-event", lambda w, e, k=key, l=label: pick_button_color(k, l))
+            col.pack_start(ev, False, False, 0)
+            lbl = Gtk.Label()
+            lbl.set_markup("<small>%s</small>" % label)
+            lbl.get_style_context().add_class("dim-label")
+            col.pack_start(lbl, False, False, 0)
+            prev.pack_start(col, False, False, 0)
+            self._btn_previews.append(da)
+        reset = Gtk.LinkButton.new_with_label("", "Reset")
+        reset.set_valign(Gtk.Align.START)
+
+        def do_reset(*_):
+            self.s["button_colors"] = {}
+            appearance.set_options(button_colors={})
+            for d in self._btn_previews:
+                d.queue_draw()
+            return True
+        reset.connect("activate-link", do_reset)
+        prev.pack_start(reset, False, False, 0)
+        v.pack_start(prev, False, False, 0)
+        bnote = Gtk.Label(xalign=0)
+        bnote.set_line_wrap(True)
+        bnote.set_markup("<small>Click a button to give it any color you like (that switches to "
+                         "<b>Custom</b>). Colorful is red, yellow and green; Graphite is grey; Accent "
+                         "Color uses the accent color for all three.</small>")
+        bnote.get_style_context().add_class("dim-label")
+        v.pack_start(bnote, False, False, 0)
+
+        def style_changed(w):
+            self.s["window_buttons"] = w.get_active_id()
+            appearance.set_options(window_buttons=w.get_active_id())
+            for d in self._btn_previews:
+                d.queue_draw()
+        wb.connect("changed", style_changed)
         v.pack_start(Gtk.Separator(), False, False, 6)
         v.pack_start(heading("Wallpaper"), False, False, 0)
         flow = Gtk.FlowBox()

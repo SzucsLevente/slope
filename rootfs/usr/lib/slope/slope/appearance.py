@@ -58,7 +58,19 @@ ACCENTS = [
     ("green", "Green", "#32b04b"),
     ("graphite", "Graphite", "#8a919c"),
 ]
-BUTTON_STYLES = [("colorful", "Colorful"), ("graphite", "Graphite"), ("accent", "Accent Color")]
+BUTTON_STYLES = [("colorful", "Colorful"), ("graphite", "Graphite"), ("accent", "Accent Color"),
+                 ("custom", "Custom")]
+
+
+def button_colors(settings=None):
+    """The colours of the three title buttons in the "custom" style."""
+    from .art import DEFAULT_BUTTON_COLORS
+    s = settings if settings is not None else _settings()
+    out = dict(DEFAULT_BUTTON_COLORS)
+    for k, v in (s.get("button_colors") or {}).items():
+        if k in out and re.match(r"^#[0-9a-fA-F]{6}$", str(v)):
+            out[k] = v.lower()
+    return out
 USER_THEMES = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "themes")
 SYS_THEMES = "/usr/share/themes"
 
@@ -144,7 +156,7 @@ def build_theme(name, dark, settings=None):
     style = s.get("window_buttons", "colorful")
     if style != "colorful":
         from . import art
-        art.render_titlebuttons(ob, lights=art.lights_for(style, accent))
+        art.render_titlebuttons(ob, lights=art.lights_for(style, accent, button_colors(s)))
     # the other (older) copy is no longer needed
     other = name[:-1] + ("2" if name.endswith("1") else "1")
     shutil.rmtree(os.path.join(USER_THEMES, other), ignore_errors=True)

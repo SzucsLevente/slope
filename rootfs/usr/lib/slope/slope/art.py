@@ -326,19 +326,32 @@ def draw_light(cr, size, colors, glyph=None, pressed=False):
         cr.restore()
 
 
-def lights_for(style, accent="#2f86f3"):
+def gel(color):
+    """(base, deep, glow) colours of a glossy gel button made from one colour."""
+    r, gr, b = hex_rgb(color)
+
+    def mix(t, k):
+        return "#%02x%02x%02x" % tuple(int(255 * (c + (t - c) * k)) for c in (r, gr, b))
+    return (mix(1, 0.08), mix(0, 0.35), mix(1, 0.6))
+
+
+DEFAULT_BUTTON_COLORS = {"close": "#ff5f57", "iconify": "#ffc12e", "max": "#2fd04a"}
+
+
+def lights_for(style, accent="#2f86f3", custom=None):
     """Title button colours: "colorful" (red, yellow, green), "graphite",
-    or "accent" (all three in the accent colour)."""
+    "accent" (all three in the accent colour) or "custom" (one colour per
+    button: custom = {"close": "#rrggbb", "iconify": ..., "max": ...})."""
     if style == "graphite":
         g = ("#9aa1ad", "#5d636e", "#dfe3ea")
         return {"close": g, "iconify": g, "max": g}
     if style == "accent":
-        r, gr, b = hex_rgb(accent)
-
-        def mix(t, k):
-            return "#%02x%02x%02x" % tuple(int(255 * (c + (t - c) * k)) for c in (r, gr, b))
-        a = (mix(1, 0.08), mix(0, 0.35), mix(1, 0.6))
+        a = gel(accent)
         return {"close": a, "iconify": a, "max": a}
+    if style == "custom":
+        colors = dict(DEFAULT_BUTTON_COLORS)
+        colors.update(custom or {})
+        return {k: gel(v) for k, v in colors.items()}
     return dict(LIGHTS)
 
 
