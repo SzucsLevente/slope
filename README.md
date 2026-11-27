@@ -43,6 +43,16 @@ machine.
   with ⌃Space), Mac keyboard fixes (both ⌥ Option keys as AltGr, swap the key
   above Tab with the one left of Z), an optional Compose key, and the same
   layout on the login screen.
+- **Slope's own apps**: **Browser** (WebKit, Safari-like toolbar and tabs,
+  start page with favorites, private windows, bookmarks, find, downloads),
+  **Terminal** (tabs, ⌘C / ⌘V, follows dark mode) and **Player** (videos
+  and music with floating glass controls).
+- **Accent color** (any color) for selections, sidebars, buttons and the
+  top bar's menus, and **window buttons** in color, graphite or the accent
+  color (System Settings → Appearance).
+- **Slope cursors**: glossy Mac-style cursors, sharp on Retina screens, with
+  a pointer size setting.
+- **Launchpad pages** with page dots: swipe, scroll or use the arrow keys.
 - **.deb packages**: open a downloaded `.deb` and the Package Installer
   installs it with its dependencies (asks for your password).
 - The screen resolution you pick in System Settings → Displays is kept across

@@ -22,7 +22,7 @@ SHARE = "/usr/share/slope"
 DEFAULTS = {
     "dock_apps": [
         "slope-files.desktop",
-        "org.kde.falkon.desktop",
+        "slope-browser.desktop",
         "slope-terminal.desktop",
         "slope-player.desktop",
         "org.xfce.mousepad.desktop",
@@ -58,8 +58,10 @@ FRIENDLY_NAMES = {
     "galculator": "Calculator",
     "xfce4-taskmanager": "Activity Monitor",
     "org.xfce.taskmanager": "Activity Monitor",
-    "org.kde.falkon": "Browser",
-    "falkon": "Browser",
+    "org.kde.falkon": "Falkon",
+    "slope-browser": "Browser",
+    "slope-player": "Player",
+    "falkon": "Falkon",
     "pavucontrol": "Sound",
     "org.pulseaudio.pavucontrol": "Sound",
     "slope-settings": "System Settings",
@@ -153,7 +155,8 @@ def load_settings():
     apps = data.get("dock_apps")
     if isinstance(apps, list) and "thunar.desktop" in apps:
         data["dock_apps"] = ["slope-files.desktop" if a == "thunar.desktop" else
-                             "slope-terminal.desktop" if a == "xfce4-terminal.desktop" else a for a in apps
+                             "slope-terminal.desktop" if a == "xfce4-terminal.desktop" else
+                             "slope-browser.desktop" if a == "org.kde.falkon.desktop" else a for a in apps
                              if a != "slope-files.desktop" or "thunar.desktop" not in apps]
     return data
 

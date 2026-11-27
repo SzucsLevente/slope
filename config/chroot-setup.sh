@@ -49,7 +49,8 @@ update-alternatives --set x-session-manager /usr/bin/slope-session
 # Slope Terminal is the terminal everything opens (x-terminal-emulator -e ...)
 update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator /usr/bin/slope-terminal 60
 update-alternatives --set x-terminal-emulator /usr/bin/slope-terminal 2>/dev/null || true
-update-alternatives --set x-www-browser /usr/bin/falkon 2>/dev/null || true
+update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/bin/slope-browser 60
+update-alternatives --set x-www-browser /usr/bin/slope-browser 2>/dev/null || true
 # only offer the Slope session at the login screen
 rm -f /usr/share/xsessions/openbox.desktop /usr/share/xsessions/lightdm-xsession.desktop
 
@@ -84,7 +85,7 @@ rename_app org.xfce.mousepad.desktop "TextEdit"
 rename_app org.xfce.ristretto.desktop "Preview"
 rename_app galculator.desktop "Calculator"
 rename_app xfce4-taskmanager.desktop "Activity Monitor"
-rename_app org.kde.falkon.desktop "Browser"
+rename_app org.kde.falkon.desktop "Falkon"
 rename_app atril.desktop "Documents"
 rename_app xarchiver.desktop "Archive Utility"
 rename_app pavucontrol.desktop "Sound"
