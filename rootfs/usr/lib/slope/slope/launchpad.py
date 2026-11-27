@@ -198,7 +198,11 @@ class Launchpad(Gtk.Window):
         self.connect("draw", self._draw)
         self.connect("key-press-event", self._key)
         self.connect("focus-out-event", lambda *_: GLib.timeout_add(200, self._maybe_close))
-        self.add_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
+        # a click on any empty spot closes Launchpad: presses that no widget
+        # (an app, the search field, a page dot) takes come up to the window
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK)
+        self._bg_press = False
+        self.connect("button-press-event", self._background_press)
         self.connect("button-release-event", self._background_click)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
@@ -519,8 +523,21 @@ class Launchpad(Gtk.Window):
             return True
         return False
 
+    def _on_app(self, child, x):
+        """Is x (in the grid) on the app's icon or name, not the empty part of its cell?"""
+        a = child.get_allocation()
+        width = ICON
+        box = child.get_child()
+        if box is not None:
+            for w in box.get_children():
+                if isinstance(w, Gtk.Label):
+                    width = max(width, w.get_layout().get_pixel_size()[0])
+        return abs(x - (a.x + a.width / 2.0)) <= width / 2.0 + 14
+
     def _flow_press(self, flow, ev):
         child = flow.get_child_at_pos(int(ev.x), int(ev.y))
+        if child is not None and not self._on_app(child, ev.x):
+            child = None                       # beside an icon is empty space too
         if child is None:
             if ev.button == 1:
                 self.close_launchpad()
@@ -530,9 +547,14 @@ class Launchpad(Gtk.Window):
             return True
         return False
 
+    def _background_press(self, w, ev):
+        self._bg_press = ev.button == 1 and ev.type == Gdk.EventType.BUTTON_PRESS
+        return False
+
     def _background_click(self, w, ev):
-        # only clicks on the bare background (not the search field or an app)
-        if ev.button == 1 and Gtk.get_event_widget(ev) is self:
+        # pressed and released on empty space (anywhere no widget took the click)
+        if ev.button == 1 and self._bg_press:
+            self._bg_press = False
             self.close_launchpad()
         return False
 

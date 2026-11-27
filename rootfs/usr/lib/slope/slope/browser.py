@@ -43,15 +43,38 @@ CSS = b"""
   background-image: linear-gradient(to bottom, #f4f4f5, #dcdcde); }
 .slope-browser.private .toolbar-box { background-image: linear-gradient(to bottom, #4a4a50, #2e2e33);
   border-bottom-color: #111; }
-.slope-browser.private .toolbar-box button { color: #f0f0f3; }
 .slope-browser .address { border-radius: 8px; min-height: 26px; }
 .slope-browser .address progress { background-image: none; background-color: alpha(@slope_accent, 0.35);
   border: none; border-radius: 0; min-height: 2px; margin-bottom: -1px; }
 .slope-browser .tabs-box { padding: 0; background-color: #cfcfd2; border-bottom: 1px solid rgba(0,0,0,0.25); }
-.slope-browser .tabs-box button.tab { border-radius: 0; border: none; border-right: 1px solid rgba(0,0,0,0.18);
-  box-shadow: none; padding: 3px 8px; background-image: linear-gradient(to bottom, #cdcdd0, #c2c2c6); }
-.slope-browser .tabs-box button.tab.current { background-image: linear-gradient(to bottom, #f2f2f3, #e6e6e8); }
-.slope-browser .tabs-box button.tab label { font-size: 9.5pt; }
+.slope-browser .tabs-box .tab { border-right: 1px solid rgba(0,0,0,0.18); padding: 2px 6px;
+  background-image: linear-gradient(to bottom, #cdcdd0, #c2c2c6); }
+.slope-browser .tabs-box .tab.current { background-image: linear-gradient(to bottom, #f2f2f3, #e6e6e8); }
+.slope-browser .tabs-box .tab label { font-size: 9.5pt; }
+.slope-browser .tabs-box .tab button.tab-close { padding: 0; min-width: 18px; min-height: 18px; border-radius: 999px;
+  border: none; box-shadow: none; background-image: none; opacity: 0.55; }
+.slope-browser .tabs-box .tab button.tab-close:hover { opacity: 1; background-color: rgba(0,0,0,0.12); }
+
+/* Private windows: graphite all over (like Safari), whatever the appearance */
+.slope-browser.private .toolbar-box button {
+  color: #f0f0f3; text-shadow: 0 -1px rgba(0,0,0,0.6); border-color: rgba(0,0,0,0.7);
+  background-image: linear-gradient(to bottom, #66666c 0%, #56565c 20%, #48484e 49%, #3a3a3f 50%, #434348 75%, #515157 100%);
+  box-shadow: inset 0 1px rgba(255,255,255,0.15), 0 1px 1px rgba(0,0,0,0.4); }
+.slope-browser.private .toolbar-box button:hover {
+  background-image: linear-gradient(to bottom, #72727a, #5f5f66 49%, #4b4b51 50%, #56565d); }
+.slope-browser.private .toolbar-box button:disabled { color: rgba(240,240,243,0.35); }
+.slope-browser.private .address { background-color: #1f1f23; color: #f0f0f3; border-color: rgba(0,0,0,0.75);
+  caret-color: #ffffff; }
+.slope-browser.private .private-badge { color: #ffffff; font-weight: bold; font-size: 9pt; padding: 2px 10px;
+  border-radius: 999px; background-image: linear-gradient(to bottom, #8d8d96, #5e5e66);
+  box-shadow: inset 0 1px rgba(255,255,255,0.3); }
+.slope-browser.private .tabs-box { background-color: #232326; border-bottom-color: #0e0e10; }
+.slope-browser.private .tabs-box .tab { border-right-color: #121214;
+  background-image: linear-gradient(to bottom, #2e2e32, #28282b); }
+.slope-browser.private .tabs-box .tab.current { background-image: linear-gradient(to bottom, #48484e, #3c3c41); }
+.slope-browser.private .tabs-box .tab label, .slope-browser.private .tabs-box .tab button { color: #e8e8ec; }
+.slope-browser.private .findbar { background-image: linear-gradient(to bottom, #3a3a3e, #2f2f33);
+  border-bottom-color: #121214; }
 .slope-browser .findbar { padding: 4px 10px; background-image: linear-gradient(to bottom, #ececee, #dedee0);
   border-bottom: 1px solid rgba(0,0,0,0.2); }
 """
@@ -59,9 +82,10 @@ CSS = b"""
 DARK_CSS = b"""
 .slope-browser .toolbar-box { background-image: linear-gradient(to bottom, #45454a, #333337); border-bottom-color: #121214; }
 .slope-browser .tabs-box { background-color: #2a2a2d; border-bottom-color: #121214; }
-.slope-browser .tabs-box button.tab { background-image: linear-gradient(to bottom, #333337, #2c2c30);
+.slope-browser .tabs-box .tab { background-image: linear-gradient(to bottom, #333337, #2c2c30);
   border-right-color: #19191b; }
-.slope-browser .tabs-box button.tab.current { background-image: linear-gradient(to bottom, #4a4a50, #3e3e43); }
+.slope-browser .tabs-box .tab.current { background-image: linear-gradient(to bottom, #4a4a50, #3e3e43); }
+.slope-browser .tabs-box .tab button.tab-close:hover { background-color: rgba(255,255,255,0.12); }
 .slope-browser .findbar { background-image: linear-gradient(to bottom, #3a3a3e, #2f2f33); border-bottom-color: #121214; }
 """
 
@@ -97,7 +121,7 @@ def to_url(text):
     return SEARCH % urllib.parse.quote_plus(t)
 
 
-def start_page(bookmarks, dark):
+def start_page(bookmarks, dark, private=False):
     """The new-tab page: a search field and the favourites as glossy tiles."""
     bg, fg, tile = (("#1e1e21", "#ececf0", "#2f2f34") if dark else ("#f2f3f6", "#1d1d1f", "#ffffff"))
     tiles = "".join(
@@ -121,28 +145,44 @@ input{width:100%%;box-sizing:border-box;font-size:17px;padding:12px 18px;border-
  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 3px 8px rgba(0,0,0,.25)}
 .tile:hover .icon{filter:brightness(1.08)}
 .name{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-</style></head><body><h1>Favorites</h1>
+.private{margin:56px 0 -36px;max-width:520px;text-align:center;font-size:13px;opacity:.75;line-height:1.5}
+.private b{display:block;font-size:17px;opacity:1;margin-bottom:4px}
+</style></head><body>%(private)s<h1>Favorites</h1>
 <form action="https://duckduckgo.com/"><input name="q" placeholder="Search or enter website name" autofocus></form>
-<div class="grid">%(tiles)s</div></body></html>""" % {"bg": bg, "fg": fg, "tile": tile, "tiles": tiles}
+<div class="grid">%(tiles)s</div></body></html>""" % {"bg": bg, "fg": fg, "tile": tile, "tiles": tiles,
+       "private": ('<div class="private"><b>Private Browsing</b>Slope Browser won\u2019t remember the pages '
+                   'you visit, your searches, cookies or website data from this window.</div>' if private else "")}
 
 
 class Tab:
     def __init__(self, win, view):
         self.win, self.view = win, view
-        self.button = Gtk.Button()
-        self.button.get_style_context().add_class("tab")
-        self.button.set_relief(Gtk.ReliefStyle.NONE)
+        # an event box, not a button: a button inside a button (the close
+        # button) never receives its clicks
+        self.button = Gtk.EventBox()
         box = Gtk.Box(spacing=6)
+        box.get_style_context().add_class("tab")
+        self.box = box
         self.close = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
         self.close.set_relief(Gtk.ReliefStyle.NONE)
+        self.close.get_style_context().add_class("tab-close")
+        self.close.set_tooltip_text("Close Tab")
         self.close.connect("clicked", lambda *_: win.close_tab(self))
         self.label = Gtk.Label(label="New Tab")
         self.label.set_ellipsize(Pango.EllipsizeMode.END)
         self.label.set_hexpand(True)
         box.pack_start(self.close, False, False, 0)
         box.pack_start(self.label, True, True, 0)
+        box.pack_start(Gtk.Box(), False, False, 12)      # keeps the title centred
         self.button.add(box)
-        self.button.connect("clicked", lambda *_: win.select(self))
+
+        def press(w, ev):
+            if ev.button == 2:                            # middle click closes, like everywhere
+                win.close_tab(self)
+            elif ev.button == 1:
+                win.select(self)
+            return False
+        self.button.connect("button-press-event", press)
         self.button.show_all()
 
 
@@ -187,8 +227,9 @@ class BrowserWindow(Gtk.ApplicationWindow):
         self.address.set_completion(comp)
         bar.pack_start(self.address, True, True, 0)
         if private:
-            pl = Gtk.Label()
-            pl.set_markup("<b>Private</b>")
+            pl = Gtk.Label(label="Private")
+            pl.get_style_context().add_class("private-badge")
+            pl.set_valign(Gtk.Align.CENTER)
             pl.set_tooltip_text("Nothing from this window is kept: no history, cookies or cache")
             bar.pack_start(pl, False, False, 4)
         bar.pack_start(self._button("bookmark-new-symbolic", "Add Bookmark", self.add_bookmark), False, False, 0)
@@ -291,7 +332,7 @@ class BrowserWindow(Gtk.ApplicationWindow):
         self.current = tab
         self.pages.set_visible_child(tab.view)
         for t in self.tabs:
-            ctx = t.button.get_style_context()
+            ctx = t.box.get_style_context()
             (ctx.add_class if t is tab else ctx.remove_class)("current")
         self._uri(tab)
         self._titled(tab)
@@ -333,7 +374,8 @@ class BrowserWindow(Gtk.ApplicationWindow):
 
     def load(self, view, url):
         if url == HOME:
-            view.load_html(start_page(self.app.cfg["bookmarks"], self.app.dark()), "slope:start")
+            view.load_html(start_page(self.app.cfg["bookmarks"], self.app.dark() or self.private,
+                                      self.private), "slope:start")
         else:
             view.load_uri(url)
 
