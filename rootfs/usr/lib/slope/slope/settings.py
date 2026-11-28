@@ -496,6 +496,9 @@ class SettingsWindow(Gtk.Window):
             c = Gdk.RGBA()
             c.parse(appearance.button_colors(self.s)[key])
             dlg.set_rgba(c)
+            # GTK selects the colour it remembers from last time once the dialog
+            # shows; start from this button's own colour instead
+            dlg.connect("map", lambda d: d.set_rgba(c))
             if dlg.run() == Gtk.ResponseType.OK:
                 rgba = dlg.get_rgba()
                 cols = appearance.button_colors(self.s)

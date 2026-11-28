@@ -19,6 +19,11 @@ treeview.view:selected, iconview:selected, .view:selected, row:selected {
   background-image: linear-gradient(to bottom, mix(@slope_accent, #ffffff, 0.33), @slope_accent 55%, mix(@slope_accent, #000000, 0.11));
   color: #ffffff;
 }
+/* ...but a colour picker swatch keeps its own colour (only the tick shows it's chosen) */
+colorswatch:selected, colorswatch:selected:focus, colorswatch:selected > overlay {
+  background-image: none;
+  background-color: transparent;
+}
 
 /* ------------------------------------------------------------------ */
 /* Buttons: white glass gel                                            */

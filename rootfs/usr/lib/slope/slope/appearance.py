@@ -105,21 +105,38 @@ def _current_theme_name():
         return ""
 
 
+SERIAL_PATH = os.path.join(CONFIG, "theme-serial")
+
+
+def _next_serial():
+    """A number never used for a personal theme before: Openbox keeps the
+    title-button pictures it loaded by file name, so a rebuilt theme needs a
+    new name (and path) or the window buttons keep showing old colours."""
+    try:
+        with open(SERIAL_PATH) as f:
+            n = int(f.read().strip() or 0)
+    except (OSError, ValueError):
+        n = 0
+    m = re.search(r"-Custom-(\d+)$", _current_theme_name())
+    n = max(n, int(m.group(1)) if m else 0) + 1
+    try:
+        _write(SERIAL_PATH, "%d\n" % n)
+    except OSError:
+        pass
+    return n
+
+
 def theme_name(dark, settings=None, fresh=False):
     """The theme to use.  fresh: a new name for a rebuilt personal theme, so
-    running apps load it again (they only re-read a theme whose name changes)."""
+    running apps (and Openbox) load it again; they only re-read a theme
+    whose name changes."""
     base = "Slope-Dark" if dark else "Slope"
     if not customized(settings):
         return base
     cur = _current_theme_name()
-    n = 1
-    if cur.startswith(base + "-Custom-"):
-        n = int(cur.rsplit("-", 1)[1]) if cur.rsplit("-", 1)[1].isdigit() else 1
-        if fresh:
-            n = 2 if n == 1 else 1
-    elif fresh:
-        n = 1
-    return "%s-Custom-%d" % (base, n)
+    if not fresh and re.match(r"^%s-Custom-\d+$" % re.escape(base), cur):
+        return cur
+    return "%s-Custom-%d" % (base, _next_serial())
 
 
 def build_theme(name, dark, settings=None):
