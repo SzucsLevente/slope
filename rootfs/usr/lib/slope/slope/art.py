@@ -326,7 +326,7 @@ def draw_light(cr, size, colors, glyph=None, pressed=False):
         cr.restore()
 
 
-def gel(color):
+def gel_colors(color):
     """(base, deep, glow) colours of a glossy gel button made from one colour."""
     r, gr, b = hex_rgb(color)
 
@@ -346,12 +346,12 @@ def lights_for(style, accent="#2f86f3", custom=None):
         g = ("#9aa1ad", "#5d636e", "#dfe3ea")
         return {"close": g, "iconify": g, "max": g}
     if style == "accent":
-        a = gel(accent)
+        a = gel_colors(accent)
         return {"close": a, "iconify": a, "max": a}
     if style == "custom":
         colors = dict(DEFAULT_BUTTON_COLORS)
         colors.update(custom or {})
-        return {k: gel(v) for k, v in colors.items()}
+        return {k: gel_colors(v) for k, v in colors.items()}
     return dict(LIGHTS)
 
 

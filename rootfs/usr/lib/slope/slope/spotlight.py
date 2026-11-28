@@ -85,6 +85,7 @@ class Spotlight(Gtk.Window):
             self.set_visual(vis)
         self.get_style_context().add_class("slope-spotlight")
         self.connect("draw", self._draw)
+        self.connect("size-allocate", lambda w, a: self._shape(a))
         self.connect("key-press-event", self._key)
         self.connect("focus-out-event", lambda *_: GLib.timeout_add(150, self._maybe_quit))
 
@@ -143,6 +144,23 @@ class Spotlight(Gtk.Window):
         if not self.is_active() and self._focused_once:
             Gtk.main_quit()
         return False
+
+    def _shape(self, a):
+        """Without a compositor, cut the window to its rounded panel (no black corners)."""
+        key = (a.width, a.height) if not self.get_screen().is_composited() else None
+        if key == getattr(self, "_shape_key", None):
+            return
+        self._shape_key = key
+        if key is None:
+            self.shape_combine_region(None)
+            return
+        r, w, h = 14, a.width, a.height
+        region = cairo.Region()
+        for dy in range(0, h, 2):
+            e = min(dy + 1, h - dy - 1)
+            inset = r - math.sqrt(max(0.0, r * r - (r - e) ** 2)) if e < r else 0
+            region.union(cairo.RectangleInt(int(inset), dy, int(w - 2 * inset), min(2, h - dy)))
+        self.shape_combine_region(region)
 
     def _draw(self, w, cr):
         a = self.get_allocation()

@@ -1,0 +1,42 @@
+#!/bin/sh
+# Slope: hide technical launchers and give the bundled apps Mac-style names.
+# Runs at build time and after every dpkg run (/etc/apt/apt.conf.d/99slope-icons),
+# because a package upgrade puts the original .desktop file back.  Idempotent.
+A=/usr/share/applications
+
+for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton xfce4-terminal \
+         display-im6.q16 display-im7.q16 nm-applet thunar thunar-settings thunar-bulk-rename \
+         thunar-volman-settings org.xfce.mousepad-settings xfce4-terminal-settings \
+         calamares org.kde.calamares xfce4-notifyd-config vim; do
+  d="$A/$f.desktop"
+  [ -f "$d" ] || continue
+  if grep -q '^NoDisplay=true' "$d"; then
+    :
+  elif grep -q '^NoDisplay=' "$d"; then
+    sed -i 's/^NoDisplay=.*/NoDisplay=true/' "$d"
+  else
+    sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "$d"
+  fi
+done
+
+rename_app() {  # desktop-file new-name
+  f="$A/$1"
+  [ -f "$f" ] || return 0
+  grep -qx "Name=$2" "$f" && ! grep -q '^Name\[' "$f" && return 0
+  sed -i "0,/^Name=.*/s//Name=$2/" "$f"
+  sed -i '/^Name\[/d' "$f"
+}
+# Slope Terminal is "Terminal"; the hidden Xfce one keeps a distinct name for Open With lists
+rename_app xfce4-terminal.desktop "Xfce Terminal"
+rename_app org.xfce.mousepad.desktop "TextEdit"
+rename_app org.xfce.ristretto.desktop "Preview"
+rename_app galculator.desktop "Calculator"
+rename_app xfce4-taskmanager.desktop "Activity Monitor"
+rename_app org.kde.falkon.desktop "Falkon"
+rename_app atril.desktop "Documents"
+rename_app xarchiver.desktop "Archive Utility"
+rename_app pavucontrol.desktop "Sound"
+rename_app org.pulseaudio.pavucontrol.desktop "Sound"
+# nm-applet has no tray to live in: the top bar shows network status instead
+rm -f /etc/xdg/autostart/nm-applet.desktop
+exit 0

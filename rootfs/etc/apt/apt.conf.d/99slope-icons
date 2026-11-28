@@ -1,2 +1,5 @@
-// Slope: give every newly installed app a glossy icon that matches the desktop
+// Slope: after installs and upgrades, keep technical launchers hidden and the
+// Mac-style app names (an upgrade restores the original .desktop files), and give
+// every newly installed app a glossy icon that matches the desktop
+DPkg::Post-Invoke { "if [ -x /usr/lib/slope/slope-app-names ]; then /usr/lib/slope/slope-app-names >/dev/null 2>&1 || true; fi"; };
 DPkg::Post-Invoke { "if [ -x /usr/bin/slope-icons ]; then /usr/bin/slope-icons --update >/dev/null 2>&1 || true; fi"; };

@@ -54,42 +54,10 @@ update-alternatives --set x-www-browser /usr/bin/slope-browser 2>/dev/null || tr
 # only offer the Slope session at the login screen
 rm -f /usr/share/xsessions/openbox.desktop /usr/share/xsessions/lightdm-xsession.desktop
 
-# hide technical launchers from Spotlight
-for f in debian-xterm debian-uxterm openbox obconf lxappearance picom compton xfce4-terminal \
-         display-im6.q16 display-im7.q16 nm-applet thunar thunar-settings thunar-bulk-rename \
-         thunar-volman-settings org.xfce.mousepad-settings xfce4-terminal-settings \
-         calamares org.kde.calamares xfce4-notifyd-config vim; do
-  d="/usr/share/applications/$f.desktop"
-  if [ -f "$d" ]; then
-    if grep -q '^NoDisplay=' "$d"; then
-      sed -i 's/^NoDisplay=.*/NoDisplay=true/' "$d"
-    else
-      sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "$d"
-    fi
-  fi
-done
-# nm-applet has no tray to live in: the top bar shows network status instead
-rm -f /etc/xdg/autostart/nm-applet.desktop
-
-# Mac-style names for the bundled apps
-rename_app() {  # desktop-file new-name
-  local f="/usr/share/applications/$1"
-  [ -f "$f" ] || return 0
-  sed -i "0,/^Name=.*/s//Name=$2/" "$f"
-  sed -i '/^Name\[/d' "$f"
-}
+# hide technical launchers, Mac-style names (again after every dpkg run)
+/usr/lib/slope/slope-app-names
 # Files is Slope's own file manager (slope-files); Thunar stays installed but hidden
 xdg-mime default slope-files.desktop inode/directory 2>/dev/null || true
-rename_app xfce4-terminal.desktop "Terminal"
-rename_app org.xfce.mousepad.desktop "TextEdit"
-rename_app org.xfce.ristretto.desktop "Preview"
-rename_app galculator.desktop "Calculator"
-rename_app xfce4-taskmanager.desktop "Activity Monitor"
-rename_app org.kde.falkon.desktop "Falkon"
-rename_app atril.desktop "Documents"
-rename_app xarchiver.desktop "Archive Utility"
-rename_app pavucontrol.desktop "Sound"
-rename_app org.pulseaudio.pavucontrol.desktop "Sound"
 update-desktop-database -q /usr/share/applications || true
 
 echo "--- glossy Slope icon theme"

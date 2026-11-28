@@ -65,7 +65,10 @@ class TerminalTab(Gtk.ScrolledWindow):
         self.term.set_cursor_blink_mode(Vte.CursorBlinkMode.ON)
         self.term.set_allow_hyperlink(True)
         self.term.set_font(Pango.FontDescription(win.app.font))
-        self.term.connect("child-exited", lambda *_: win.close_tab(self))
+        # a command given with -e stays on screen when it ends, like macOS
+        # Terminal ("[Process completed]"); the login shell closes its tab
+        self.command = bool(argv)
+        self.term.connect("child-exited", self._exited)
         self.term.connect("window-title-changed", lambda *_: win.update_title(self))
         self.term.connect("button-press-event", self._press)
         self.add(self.term)
@@ -74,11 +77,25 @@ class TerminalTab(Gtk.ScrolledWindow):
         argv = argv or [shell]
         self.term.spawn_async(Vte.PtyFlags.DEFAULT, cwd or GLib.get_home_dir(), argv,
                               ["TERM=xterm-256color", "COLORTERM=truecolor", "TERM_PROGRAM=Slope"],
-                              GLib.SpawnFlags.SEARCH_PATH, None, None, -1, None, None)
+                              GLib.SpawnFlags.SEARCH_PATH, None, None, -1, None, self._spawned, None)
         self.label = Gtk.Label(label="Terminal")
         self.label.set_ellipsize(Pango.EllipsizeMode.END)
         self.label.set_max_width_chars(40)
         self.label.set_width_chars(8)
+
+    def _spawned(self, term, pid, error, *_):
+        if error is not None:
+            self.command = True
+            self._note("Couldn't run the command: %s" % error.message)
+
+    def _exited(self, term, status):
+        if self.command:
+            self._note("[Process completed]")
+        else:
+            self.win.close_tab(self)
+
+    def _note(self, text):
+        self.term.feed(("\r\n\x1b[2m%s\x1b[0m\r\n" % text).encode())
 
     def colours(self):
         from .common import dark_theme

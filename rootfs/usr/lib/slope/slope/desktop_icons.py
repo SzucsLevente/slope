@@ -15,7 +15,7 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import files  # noqa: E402
-from .common import open_app, spawn  # noqa: E402
+from .common import spawn  # noqa: E402
 
 CELL_W, CELL_H, ICON = 108, 104, 64
 MARGIN = 14
@@ -485,7 +485,7 @@ class DesktopIcons:
             Gtk.SeparatorMenuItem(),
             self._mi("Clean Up", self.clean_up),
             self._mi("Show Desktop in Files", lambda: files.open_folder(self.dir)),
-            self._mi("Open Terminal", lambda: open_app("slope-terminal.desktop")),
+            self._mi("Open in Terminal", lambda: spawn(["slope-terminal", "--working-directory", self.dir.get_path()])),
             Gtk.SeparatorMenuItem(),
             self._mi("Change Wallpaper…", lambda: spawn(["slope-settings", "--page", "appearance"])),
             self._mi("Display Settings…", lambda: spawn(["slope-settings", "--page", "displays"])),

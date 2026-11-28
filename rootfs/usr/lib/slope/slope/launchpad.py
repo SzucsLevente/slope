@@ -366,7 +366,6 @@ class Launchpad(Gtk.Window):
                 continue
             apps.append((friendly_name(a).lower(), a))
         apps.sort(key=lambda t: t[0])
-        theme = Gtk.IconTheme.get_default()
         for _, a in apps:
             child = Gtk.FlowBoxChild()
             child.appinfo = a

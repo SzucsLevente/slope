@@ -157,9 +157,20 @@ def build_theme(name, dark, settings=None):
     if style != "colorful":
         from . import art
         art.render_titlebuttons(ob, lights=art.lights_for(style, accent, button_colors(s)))
-    # the other (older) copy is no longer needed
-    other = name[:-1] + ("2" if name.endswith("1") else "1")
-    shutil.rmtree(os.path.join(USER_THEMES, other), ignore_errors=True)
+    _remove_old_themes(keep=name)
+
+
+def _remove_old_themes(keep=None):
+    """Drop personal themes that are no longer in use (the older copy, the
+    other light/dark variant, or all of them once the defaults are back)."""
+    import shutil
+    try:
+        names = os.listdir(USER_THEMES)
+    except OSError:
+        return
+    for n in names:
+        if n != keep and re.match(r"^Slope(-Dark)?-Custom-\d+$", n):
+            shutil.rmtree(os.path.join(USER_THEMES, n), ignore_errors=True)
 
 
 def _gnome_accent(hexcol):
@@ -246,6 +257,8 @@ def apply(dark):
         build_theme(name, dark)
     write_xsettings(dark, name)
     _run(["pkill", "-HUP", "-x", "-u", str(os.getuid()), "xsettingsd"])
+    if not customized():
+        _remove_old_themes()
     if write_openbox(dark, name):
         _run(["openbox", "--reconfigure"])
     _gnome(dark)
